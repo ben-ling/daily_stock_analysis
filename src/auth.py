@@ -56,9 +56,11 @@ def _ensure_env_loaded() -> None:
 
 
 def _get_data_dir() -> Path:
-    """Return DATA_DIR as parent of DATABASE_PATH."""
-    db_path = os.getenv("DATABASE_PATH", "./data/stock_analysis.db")
-    return Path(db_path).resolve().parent
+    """Return DATA_DIR for credential/HMAC files."""
+    data_dir = os.getenv("DATA_DIR", "./data")
+    path = Path(data_dir).resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _get_credential_path() -> Path:

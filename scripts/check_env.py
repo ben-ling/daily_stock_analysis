@@ -94,7 +94,7 @@ def check_config():
     
     print_section("基础配置")
     print(f"  股票列表: {config.stock_list}")
-    print(f"  数据库路径: {config.database_path}")
+    print(f"  数据目录: {config.data_dir}")
     print(f"  最大并发数: {config.max_workers}")
     print(f"  调试模式: {config.debug}")
     

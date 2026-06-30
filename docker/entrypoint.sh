@@ -6,7 +6,6 @@ APP_GROUP="dsa"
 APP_UID="1000"
 APP_GID="1000"
 WRITABLE_DIRS="/app/data /app/logs /app/reports /home/dsa/.longbridge"
-DATABASE_FILE="${DATABASE_PATH:-/app/data/stock_analysis.db}"
 
 warn() {
     printf '%s\n' "$*" >&2
@@ -19,23 +18,11 @@ can_write_dir_as_app_user() {
     ' sh "$1"
 }
 
-can_write_file_as_app_user() {
-    gosu "$APP_USER:$APP_GROUP" test -w "$1"
-}
-
 has_unwritable_mount_path() {
     dir="$1"
 
     if ! can_write_dir_as_app_user "$dir"; then
         return 0
-    fi
-
-    if [ "$dir" = "/app/data" ]; then
-        for file in "$DATABASE_FILE" "$DATABASE_FILE-wal" "$DATABASE_FILE-shm"; do
-            if [ -e "$file" ] && ! can_write_file_as_app_user "$file"; then
-                return 0
-            fi
-        done
     fi
 
     return 1

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import os
 import time
 import threading
 from collections.abc import Awaitable, Callable
@@ -16,10 +17,48 @@ from warnings import warn
 import anyio.to_thread
 import fastapi.testclient
 import httpx
+import pytest
 import starlette.testclient
 from anyio._backends import _asyncio
 
 T = TypeVar("T")
+
+# MySQL 测试库连接 URL。未设置时回退到本地开发库，便于无 CI 环境时跳过 DB 测试。
+TEST_DB_URL = os.getenv(
+    "DATABASE_URL_TEST",
+    "mysql+pymysql://root:jbl012345@localhost:3306/stock_analysis_test?charset=utf8mb4",
+)
+
+
+def _truncate_mysql_test_db() -> None:
+    """Truncate all tables in the MySQL test database.
+
+    Called as an autouse fixture so every test starts from a clean state.
+    Silently skips when MySQL is unavailable (e.g. pure unit tests).
+    """
+    try:
+        from sqlalchemy import create_engine, text
+
+        engine = create_engine(TEST_DB_URL, pool_pre_ping=True)
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+                tables = conn.execute(text("SHOW TABLES")).fetchall()
+                for (table_name,) in tables:
+                    conn.execute(text(f"TRUNCATE TABLE `{table_name}`"))
+                conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
+        finally:
+            engine.dispose()
+    except Exception:
+        # 无 DB 时跳过（纯单测不需要 DB）
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_mysql_test_db():
+    _truncate_mysql_test_db()
+    yield
+    _truncate_mysql_test_db()
 
 _original_call_soon_threadsafe = asyncio.BaseEventLoop.call_soon_threadsafe
 

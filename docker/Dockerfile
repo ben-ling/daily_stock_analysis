@@ -77,7 +77,8 @@ RUN EF_DATA_DIR="$(python -c 'import efinance, pathlib; print(pathlib.Path(efina
 # 设置环境变量默认值
 ENV PYTHONUNBUFFERED=1
 ENV LOG_DIR=/app/logs
-ENV DATABASE_PATH=/app/data/stock_analysis.db
+# 凭证/HMAC/会话密钥文件目录；MySQL 连接通过 DATABASE_URL 注入（见 .env）
+ENV DATA_DIR=/app/data
 # Web/API service
 ENV WEBUI_HOST=0.0.0.0
 ENV API_PORT=8000

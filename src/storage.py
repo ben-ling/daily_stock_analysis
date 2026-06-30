@@ -5,7 +5,7 @@ A股自选股智能分析系统 - 存储层
 ===================================
 
 职责：
-1. 管理 SQLite 数据库连接（单例模式）
+1. 管理 MySQL 数据库连接（单例模式）
 2. 定义 ORM 数据模型
 3. 提供数据存取接口
 4. 实现智能更新逻辑（断点续传）
@@ -41,13 +41,9 @@ from sqlalchemy import (
     or_,
     delete,
     desc,
-    event,
     func,
-    inspect,
-    MetaData,
-    Table,
 )
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import (
     declarative_base,
     sessionmaker,
@@ -72,7 +68,7 @@ if TYPE_CHECKING:
 
 
 def utc_naive_now() -> datetime:
-    """Return current UTC time without tzinfo for SQLite DateTime columns."""
+    """Return current UTC time without tzinfo for DateTime columns."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
@@ -191,7 +187,7 @@ class NewsIntel(Base):
     # 新闻内容
     title = Column(String(300), nullable=False)
     snippet = Column(Text)
-    url = Column(String(1000), nullable=False)
+    url = Column(String(512), nullable=False)
     source = Column(String(100))
     published_date = Column(DateTime, index=True)
 
@@ -222,7 +218,7 @@ class IntelligenceSource(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False, unique=True, index=True)
     source_type = Column(String(32), nullable=False, default='rss', index=True)
-    url = Column(String(1000), nullable=False)
+    url = Column(String(512), nullable=False)
     enabled = Column(Boolean, nullable=False, default=True, index=True)
     scope_type = Column(String(32), nullable=False, default='market', index=True)
     scope_value = Column(String(64), index=True)
@@ -250,7 +246,7 @@ class IntelligenceItem(Base):
     source_type = Column(String(32), nullable=False, default='rss', index=True)
     title = Column(String(300), nullable=False)
     summary = Column(Text)
-    url = Column(String(1000), nullable=False, index=True)
+    url = Column(String(512), nullable=False, index=True)
     source = Column(String(100))
     published_at = Column(DateTime, index=True)
     fetched_at = Column(DateTime, default=datetime.now, index=True)
@@ -893,7 +889,7 @@ class AlertRuleRecord(Base):
     target_scope = Column(String(32), nullable=False, default='single_symbol', index=True)
     target = Column(String(64), nullable=False, index=True)
     alert_type = Column(String(32), nullable=False, index=True)
-    parameters = Column(Text, nullable=False, default='{}')
+    parameters = Column(String(4096), nullable=False, default='{}')
     severity = Column(String(16), nullable=False, default='warning', index=True)
     enabled = Column(Boolean, nullable=False, default=True, index=True)
     source = Column(String(16), nullable=False, default='api', index=True)
@@ -1147,19 +1143,16 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 db_url = config.get_db_url()
 
             self._db_url = db_url
-            self._sqlite_wal_enabled = config.sqlite_wal_enabled
-            self._sqlite_busy_timeout_ms = config.sqlite_busy_timeout_ms
-            self._sqlite_write_retry_max = config.sqlite_write_retry_max
-            self._sqlite_write_retry_base_delay = config.sqlite_write_retry_base_delay
 
             engine_kwargs = {
                 "echo": False,
                 "pool_pre_ping": True,
+                "pool_size": 10,
+                "pool_recycle": 3600,
+                "pool_timeout": 30,
+                "max_overflow": 20,
+                "connect_args": {"charset": "utf8mb4"},
             }
-            if str(db_url).startswith("sqlite:") and self._sqlite_busy_timeout_ms > 0:
-                engine_kwargs["connect_args"] = {
-                    "timeout": self._sqlite_busy_timeout_ms / 1000,
-                }
 
             # 创建数据库引擎
             created_engine = create_engine(
@@ -1167,9 +1160,6 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 **engine_kwargs,
             )
             self._engine = created_engine
-            self._is_sqlite_engine = self._engine.url.get_backend_name() == 'sqlite'
-            self._sqlite_file_db = self._is_sqlite_engine and self._is_file_sqlite_database()
-            self._install_sqlite_pragma_handler()
 
             # 创建 Session 工厂
             self._SessionLocal = sessionmaker(
@@ -1180,10 +1170,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
             # 创建所有表
             Base.metadata.create_all(self._engine)
-            self._ensure_llm_usage_telemetry_columns()
-            self._ensure_intelligence_item_scope_values()
             self._ensure_schema_migration_record()
-            self._ensure_intelligence_items_unique_index()
 
             self._initialized = True
             logger.info(f"数据库初始化完成: {db_url}")
@@ -1209,12 +1196,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             "description": "Baseline schema created through SQLAlchemy metadata.create_all",
         }
         try:
-            if self._is_sqlite_engine:
-                statement = sqlite_insert(DatabaseSchemaMigration).values(**values)
-                statement = statement.on_conflict_do_nothing(index_elements=["version"])
-                session.execute(statement)
-            else:
-                session.execute(DatabaseSchemaMigration.__table__.insert().values(**values))
+            session.execute(DatabaseSchemaMigration.__table__.insert().values(**values))
             session.commit()
         except IntegrityError:
             session.rollback()
@@ -1227,185 +1209,6 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             raise
         finally:
             session.close()
-
-    def _ensure_intelligence_items_unique_index(self) -> None:
-        if not self._is_sqlite_engine:
-            return
-
-        if not inspect(self._engine).has_table("intelligence_items"):
-            return
-
-        try:
-            unique_indexes = self._list_sqlite_unique_indexes("intelligence_items")
-        except Exception as exc:
-            logger.warning(
-                "[Intelligence items] failed to inspect unique indexes; "
-                "skip migration/repair: %s",
-                exc,
-            )
-            return
-
-        target_columns = ("source_id", "url", "scope_type", "scope_value", "market")
-        has_target_index = any(tuple(cols) == target_columns for cols in unique_indexes)
-        has_legacy_url_unique = any(tuple(cols) == ("url",) for cols in unique_indexes)
-
-        if has_target_index:
-            return
-        if unique_indexes and not has_legacy_url_unique:
-            # Table has other unique index shapes; avoid aggressive changes and add
-            # the expected scoped uniqueness directly.
-            self._ensure_intelligence_items_scoped_unique_index_once()
-            return
-
-        self._rebuild_intelligence_items_table()
-
-    def _rebuild_intelligence_items_table(self) -> None:
-        temporary_table = f"intelligence_items_recreate_tmp_{int(time.time() * 1_000_000_000)}"
-        columns = [column.name for column in IntelligenceItem.__table__.columns]
-        select_clause = ", ".join(f'"{column}"' for column in columns)
-        scoped_index_columns = ", ".join(["source_id", "url", "scope_type", "scope_value", "market"])
-        scoped_index_name = "uix_intel_item_scope"
-
-        tmp_metadata = MetaData()
-        tmp_table = Table(
-            temporary_table,
-            tmp_metadata,
-            *(column.copy() for column in IntelligenceItem.__table__.columns),
-        )
-        logger.info("Rebuilding intelligence_items table to align composite uniqueness constraints.")
-        with self._engine.begin() as connection:
-            connection.execute(text(f'DROP TABLE IF EXISTS "{temporary_table}"'))
-            tmp_table.create(connection)
-            connection.execute(
-                text(
-                    f"INSERT INTO \"{temporary_table}\" ({select_clause}) "
-                    f"SELECT {select_clause} FROM intelligence_items"
-                )
-            )
-            connection.execute(text('DROP TABLE "intelligence_items"'))
-            connection.execute(
-                text(f'ALTER TABLE "{temporary_table}" RENAME TO intelligence_items')
-            )
-            connection.execute(
-                text(
-                    f"CREATE UNIQUE INDEX IF NOT EXISTS {scoped_index_name} ON "
-                    f"intelligence_items ({scoped_index_columns})"
-                )
-            )
-
-    def _ensure_intelligence_items_scoped_unique_index_once(self) -> None:
-        target_index_name = "uix_intel_item_scope"
-        with self._engine.begin() as connection:
-            rows = connection.execute(
-                text("PRAGMA index_list(intelligence_items)")
-            ).fetchall()
-            for row in rows:
-                if row[1] == target_index_name:
-                    return
-            index_columns = ", ".join(["source_id", "url", "scope_type", "scope_value", "market"])
-            connection.execute(
-                text(
-                    f"CREATE UNIQUE INDEX IF NOT EXISTS {target_index_name} ON "
-                    f"intelligence_items ({index_columns})"
-                )
-            )
-
-    def _list_sqlite_unique_indexes(self, table_name: str):
-        with self._engine.connect() as connection:
-            rows = connection.execute(
-                text(f"PRAGMA index_list({table_name})")
-            ).fetchall()
-            unique_indexes = []
-            for row in rows:
-                # row: (seq, name, unique, origin, partial)
-                if int(row[2]) != 1:
-                    continue
-                index_name = row[1]
-                index_columns = []
-                for index_info in connection.execute(
-                    text(f"PRAGMA index_xinfo({index_name})")
-                ).fetchall():
-                    # index_xinfo: (seqno, cid, name, desc, coll, key, ... )
-                    column_name = index_info[2]
-                    if column_name is None:
-                        continue
-                    index_columns.append(column_name)
-                unique_indexes.append(index_columns)
-            return unique_indexes
-
-    def _ensure_llm_usage_telemetry_columns(self) -> None:
-        """Add nullable P0a usage telemetry columns to existing SQLite DBs."""
-        if not self._is_sqlite_engine:
-            return
-        try:
-            existing = {
-                column["name"]
-                for column in inspect(self._engine).get_columns(LLMUsage.__tablename__)
-            }
-        except Exception as exc:
-            logger.warning(
-                "[LLM usage] failed to inspect telemetry columns; "
-                "skipping best-effort SQLite telemetry column backfill: %s",
-                exc,
-            )
-            return
-
-        max_retries = self._sqlite_write_retry_max
-        for column, column_type in _LLM_USAGE_TELEMETRY_COLUMN_SQL.items():
-            if column in existing:
-                continue
-            for attempt in range(max_retries + 1):
-                try:
-                    with self._engine.begin() as connection:
-                        connection.exec_driver_sql(
-                            f"ALTER TABLE {LLMUsage.__tablename__} "
-                            f"ADD COLUMN {column} {column_type}"
-                        )
-                    existing.add(column)
-                    break
-                except OperationalError as exc:
-                    if self._is_sqlite_duplicate_column_error(exc, column):
-                        existing.add(column)
-                        break
-                    if self._is_sqlite_locked_error(exc) and attempt < max_retries:
-                        delay = self._sqlite_write_retry_base_delay * (2 ** attempt)
-                        logger.warning(
-                            "[LLM usage] SQLite telemetry column backfill locked, "
-                            "retrying: %s (%s/%s, %.2fs)",
-                            column,
-                            attempt + 1,
-                            max_retries,
-                            delay,
-                        )
-                        if delay > 0:
-                            time.sleep(delay)
-                        continue
-                    raise
-
-    def _ensure_intelligence_item_scope_values(self) -> None:
-        """Backfill nullable intelligence item scopes so SQLite unique keys work."""
-        if not self._is_sqlite_engine:
-            return
-        try:
-            existing = {
-                column["name"]
-                for column in inspect(self._engine).get_columns(IntelligenceItem.__tablename__)
-            }
-        except Exception as exc:
-            logger.warning("资讯池 scope_value 回填检查失败，已跳过: %s", exc)
-            return
-        if "scope_value" not in existing:
-            return
-        try:
-            with self._engine.begin() as connection:
-                connection.exec_driver_sql(
-                    f"UPDATE {IntelligenceItem.__tablename__} "
-                    "SET scope_value = ? "
-                    "WHERE scope_value IS NULL OR scope_value = ''",
-                    (INTELLIGENCE_ITEM_NULL_SCOPE_VALUE,),
-                )
-        except Exception as exc:
-            logger.warning("资讯池 scope_value 回填失败，已跳过: %s", exc)
 
     @classmethod
     def get_instance(cls) -> 'DatabaseManager':
@@ -1442,55 +1245,25 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         except Exception as e:
             logger.warning(f"清理数据库引擎时出错: {e}")
 
-    def _install_sqlite_pragma_handler(self) -> None:
-        """为 SQLite 连接安装竞争保护参数。"""
-        if not self._is_sqlite_engine:
-            return
-
-        @event.listens_for(self._engine, "connect")
-        def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
-            cursor = dbapi_connection.cursor()
-            try:
-                cursor.execute(f"PRAGMA busy_timeout={int(self._sqlite_busy_timeout_ms)}")
-                if self._sqlite_file_db and self._sqlite_wal_enabled:
-                    cursor.execute("PRAGMA journal_mode=WAL")
-            except Exception as exc:
-                logger.warning("初始化 SQLite PRAGMA 失败: %s", exc)
-            finally:
-                cursor.close()
-
-    def _is_file_sqlite_database(self) -> bool:
-        database = (self._engine.url.database or "").strip()
-        return bool(database) and database.lower() != ":memory:"
-
     def _run_write_transaction(
         self,
         operation_name: str,
         write_operation: Callable[[Session], T],
+        max_retries: int = 3,
+        base_delay: float = 0.1,
     ) -> T:
-        max_retries = self._sqlite_write_retry_max if self._is_sqlite_engine else 0
-
         for attempt in range(max_retries + 1):
             session = self.get_session()
             try:
-                if self._is_sqlite_engine:
-                    # Acquire the SQLite writer lock before any reads inside
-                    # `write_operation()` so pre-write existence checks and the
-                    # later upsert share one consistent write window.
-                    session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 result = write_operation(session)
                 session.commit()
                 return result
             except OperationalError as exc:
                 session.rollback()
-                if (
-                    self._is_sqlite_engine
-                    and self._is_sqlite_locked_error(exc)
-                    and attempt < max_retries
-                ):
-                    delay = self._sqlite_write_retry_base_delay * (2 ** attempt)
+                if self._is_mysql_deadlock_error(exc) and attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
                     logger.warning(
-                        "SQLite 写入锁冲突，准备重试: %s (%s/%s, %.2fs)",
+                        "MySQL 死锁/锁等待，准备重试: %s (%s/%s, %.2fs)",
                         operation_name,
                         attempt + 1,
                         max_retries,
@@ -1507,21 +1280,14 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 session.close()
 
     @staticmethod
-    def _is_sqlite_locked_error(exc: OperationalError) -> bool:
-        err_text = str(getattr(exc, "orig", exc)).lower()
-        return any(
-            token in err_text
-            for token in (
-                "database is locked",
-                "database schema is locked",
-                "database table is locked",
-            )
-        )
-
-    @staticmethod
-    def _is_sqlite_duplicate_column_error(exc: OperationalError, column: str) -> bool:
-        err_text = str(getattr(exc, "orig", exc)).lower()
-        return "duplicate column name" in err_text and column.lower() in err_text
+    def _is_mysql_deadlock_error(exc: OperationalError) -> bool:
+        """检测 MySQL 死锁(1213)与锁等待超时(1205)。"""
+        orig = getattr(exc, "orig", exc)
+        args = getattr(orig, "args", ())
+        if args and isinstance(args[0], int):
+            return args[0] in (1205, 1213)
+        err_text = str(orig).lower()
+        return "deadlock" in err_text or "lock wait timeout" in err_text
 
     @staticmethod
     def _normalize_daily_date(value: Any) -> Any:
@@ -2374,7 +2140,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         策略：
         - 按 `(code, date)` 做批量 UPSERT，已存在记录会覆盖更新
         - 同一批次内若存在重复日期，以最后一条记录为准
-        - SQLite 分支按 chunk 写入以避免绑定参数上限
+        - 按 chunk 写入以避免绑定参数上限
         
         Args:
             df: 包含日线数据的 DataFrame
@@ -2418,90 +2184,49 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         batch_dates = list(records_by_date.keys())
 
         def _write(session: Session) -> int:
-            if self._is_sqlite_engine:
-                # SQLite has a per-statement bind-parameter limit (commonly 999).
-                # Each record has ~15 columns, so chunk upserts to stay within bounds.
-                _SQLITE_CHUNK = 50
-                # `_run_write_transaction()` opens SQLite writes with
-                # `BEGIN IMMEDIATE`, so existence checks and upsert execute
-                # within one stable write window.
-                existing_dates = set()
-                _COUNT_CHUNK = 500
-                for j in range(0, len(batch_dates), _COUNT_CHUNK):
-                    chunk_dates = batch_dates[j : j + _COUNT_CHUNK]
-                    if not chunk_dates:
-                        continue
-                    existing_dates.update(
-                        session.execute(
-                            select(StockDaily.date).where(
-                                and_(
-                                    StockDaily.code == code,
-                                    StockDaily.date.in_(chunk_dates),
-                                )
-                            )
-                        ).scalars().all()
-                    )
-                new_records = [
-                    record for record in records if record['date'] not in existing_dates
-                ]
-                for i in range(0, len(records), _SQLITE_CHUNK):
-                    chunk = records[i : i + _SQLITE_CHUNK]
-                    stmt = sqlite_insert(StockDaily).values(chunk)
-                    excluded = stmt.excluded
+            # 预查已存在日期，用于统计新增数
+            existing_dates = set()
+            _COUNT_CHUNK = 500
+            for j in range(0, len(batch_dates), _COUNT_CHUNK):
+                chunk_dates = batch_dates[j : j + _COUNT_CHUNK]
+                if not chunk_dates:
+                    continue
+                existing_dates.update(
                     session.execute(
-                        stmt.on_conflict_do_update(
-                            index_elements=['code', 'date'],
-                            set_={
-                                'open': excluded.open,
-                                'high': excluded.high,
-                                'low': excluded.low,
-                                'close': excluded.close,
-                                'volume': excluded.volume,
-                                'amount': excluded.amount,
-                                'pct_chg': excluded.pct_chg,
-                                'ma5': excluded.ma5,
-                                'ma10': excluded.ma10,
-                                'ma20': excluded.ma20,
-                                'volume_ratio': excluded.volume_ratio,
-                                'data_source': excluded.data_source,
-                                'updated_at': excluded.updated_at,
-                            },
-                        )
-                    )
-                return len(new_records)
-            else:
-                existing_rows = {
-                    row.date: row
-                    for row in session.execute(
-                        select(StockDaily).where(
+                        select(StockDaily.date).where(
                             and_(
                                 StockDaily.code == code,
-                                StockDaily.date.in_(batch_dates),
+                                StockDaily.date.in_(chunk_dates),
                             )
                         )
                     ).scalars().all()
-                }
-                new_count = 0
-                for record in records:
-                    existing = existing_rows.get(record['date'])
-                    if existing is None:
-                        session.add(StockDaily(**record))
-                        new_count += 1
-                        continue
-                    existing.open = record['open']
-                    existing.high = record['high']
-                    existing.low = record['low']
-                    existing.close = record['close']
-                    existing.volume = record['volume']
-                    existing.amount = record['amount']
-                    existing.pct_chg = record['pct_chg']
-                    existing.ma5 = record['ma5']
-                    existing.ma10 = record['ma10']
-                    existing.ma20 = record['ma20']
-                    existing.volume_ratio = record['volume_ratio']
-                    existing.data_source = record['data_source']
-                    existing.updated_at = record['updated_at']
-                return new_count
+                )
+            new_count = sum(1 for r in records if r['date'] not in existing_dates)
+
+            # MySQL 批量 upsert。每记录 ~15 列，500 条/批安全。
+            _MYSQL_CHUNK = 500
+            for i in range(0, len(records), _MYSQL_CHUNK):
+                chunk = records[i : i + _MYSQL_CHUNK]
+                stmt = mysql_insert(StockDaily).values(chunk)
+                excluded = stmt.excluded
+                session.execute(
+                    stmt.on_duplicate_key_update(
+                        open=excluded.open,
+                        high=excluded.high,
+                        low=excluded.low,
+                        close=excluded.close,
+                        volume=excluded.volume,
+                        amount=excluded.amount,
+                        pct_chg=excluded.pct_chg,
+                        ma5=excluded.ma5,
+                        ma10=excluded.ma10,
+                        ma20=excluded.ma20,
+                        volume_ratio=excluded.volume_ratio,
+                        data_source=excluded.data_source,
+                        updated_at=excluded.updated_at,
+                    )
+                )
+            return new_count
 
         try:
             saved_count = self._run_write_transaction(
@@ -2911,11 +2636,14 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 "estimated_tokens": int(estimated_tokens or 0),
                 "updated_at": now,
             }
-            stmt = sqlite_insert(ConversationSummary).values(**values)
+            stmt = mysql_insert(ConversationSummary).values(**values)
             session.execute(
-                stmt.on_conflict_do_update(
-                    index_elements=["session_id"],
-                    set_=values,
+                stmt.on_duplicate_key_update(
+                    summary=stmt.inserted.summary,
+                    covered_message_id=stmt.inserted.covered_message_id,
+                    source_message_count=stmt.inserted.source_message_count,
+                    estimated_tokens=stmt.inserted.estimated_tokens,
+                    updated_at=stmt.inserted.updated_at,
                 )
             )
 

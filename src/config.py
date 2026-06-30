@@ -979,11 +979,7 @@ class Config:
     prefetch_realtime_quotes: bool = True
 
     # === 数据库配置 ===
-    database_path: str = "./data/stock_analysis.db"
-    sqlite_wal_enabled: bool = True
-    sqlite_busy_timeout_ms: int = 5000
-    sqlite_write_retry_max: int = 3
-    sqlite_write_retry_base_delay: float = 0.1
+    data_dir: str = "./data"
 
     # 是否保存分析上下文快照（用于历史回溯）
     save_context_snapshot: bool = True
@@ -1877,26 +1873,7 @@ class Config:
             ),
             md2img_engine=cls._parse_md2img_engine(os.getenv('MD2IMG_ENGINE', 'wkhtmltoimage')),
             prefetch_realtime_quotes=os.getenv('PREFETCH_REALTIME_QUOTES', 'true').lower() == 'true',
-            database_path=os.getenv('DATABASE_PATH', './data/stock_analysis.db'),
-            sqlite_wal_enabled=os.getenv('SQLITE_WAL_ENABLED', 'true').lower() == 'true',
-            sqlite_busy_timeout_ms=parse_env_int(
-                os.getenv('SQLITE_BUSY_TIMEOUT_MS'),
-                5000,
-                field_name='SQLITE_BUSY_TIMEOUT_MS',
-                minimum=0,
-            ),
-            sqlite_write_retry_max=parse_env_int(
-                os.getenv('SQLITE_WRITE_RETRY_MAX'),
-                3,
-                field_name='SQLITE_WRITE_RETRY_MAX',
-                minimum=0,
-            ),
-            sqlite_write_retry_base_delay=parse_env_float(
-                os.getenv('SQLITE_WRITE_RETRY_BASE_DELAY'),
-                0.1,
-                field_name='SQLITE_WRITE_RETRY_BASE_DELAY',
-                minimum=0.0,
-            ),
+            data_dir=os.getenv('DATA_DIR', './data'),
             save_context_snapshot=os.getenv('SAVE_CONTEXT_SNAPSHOT', 'true').lower() == 'true',
             backtest_enabled=os.getenv('BACKTEST_ENABLED', 'true').lower() == 'true',
             backtest_eval_window_days=parse_env_int(os.getenv('BACKTEST_EVAL_WINDOW_DAYS'), 10, field_name='BACKTEST_EVAL_WINDOW_DAYS', minimum=1),
@@ -3276,13 +3253,15 @@ class Config:
     
     def get_db_url(self) -> str:
         """
-        获取 SQLAlchemy 数据库连接 URL
-        
-        自动创建数据库目录（如果不存在）
+        获取 SQLAlchemy 数据库连接 URL（来自 DATABASE_URL 环境变量）。
         """
-        db_path = Path(self.database_path)
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        return f"sqlite:///{db_path.absolute()}"
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise RuntimeError(
+                "DATABASE_URL 未配置。请设置 "
+                "DATABASE_URL=mysql+pymysql://user:pass@host:3306/stock_analysis?charset=utf8mb4"
+            )
+        return db_url
 
 
 # === 便捷的配置访问函数 ===
@@ -3338,7 +3317,7 @@ if __name__ == "__main__":
     config = get_config()
     print("=== 配置加载测试 ===")
     print(f"自选股列表: {config.stock_list}")
-    print(f"数据库路径: {config.database_path}")
+    print(f"数据目录: {config.data_dir}")
     print(f"最大并发数: {config.max_workers}")
     print(f"调试模式: {config.debug}")
     

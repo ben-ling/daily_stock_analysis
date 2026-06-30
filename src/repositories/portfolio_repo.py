@@ -39,7 +39,7 @@ class DuplicateTradeDedupHashError(Exception):
 
 
 class PortfolioBusyError(Exception):
-    """Raised when SQLite write serialization cannot acquire the ledger lock."""
+    """Raised when portfolio write serialization cannot acquire the ledger lock."""
 
 
 class PortfolioRepository:
@@ -137,19 +137,11 @@ class PortfolioRepository:
     def portfolio_write_session(self):
         session = self.db.get_session()
         try:
-            session.connection().exec_driver_sql("BEGIN IMMEDIATE")
-        except OperationalError as exc:
-            session.close()
-            if self._is_sqlite_locked_error(exc):
-                raise PortfolioBusyError("Portfolio ledger is busy; please retry shortly.") from exc
-            raise
-
-        try:
             yield session
             session.commit()
         except OperationalError as exc:
             session.rollback()
-            if self._is_sqlite_locked_error(exc):
+            if self._is_mysql_deadlock_error(exc):
                 raise PortfolioBusyError("Portfolio ledger is busy; please retry shortly.") from exc
             raise
         except Exception:
@@ -942,16 +934,14 @@ class PortfolioRepository:
         )
 
     @staticmethod
-    def _is_sqlite_locked_error(exc: OperationalError) -> bool:
-        err_text = str(getattr(exc, "orig", exc)).lower()
-        return any(
-            token in err_text
-            for token in (
-                "database is locked",
-                "database schema is locked",
-                "database table is locked",
-            )
-        )
+    def _is_mysql_deadlock_error(exc: OperationalError) -> bool:
+        """检测 MySQL 死锁(1213)与锁等待超时(1205)。"""
+        orig = getattr(exc, "orig", exc)
+        args = getattr(orig, "args", ())
+        if args and isinstance(args[0], int):
+            return args[0] in (1205, 1213)
+        err_text = str(orig).lower()
+        return "deadlock" in err_text or "lock wait timeout" in err_text
 
     @staticmethod
     def _translate_trade_integrity_error(

@@ -797,8 +797,7 @@ def _load_usage_hmac_secret() -> Optional[bytes]:
 
 
 def _usage_hmac_secret_path() -> Path:
-    db_path = os.getenv("DATABASE_PATH", "./data/stock_analysis.db")
-    return Path(db_path).resolve().parent / ".llm_usage_hmac_secret"
+    return Path(os.getenv("DATA_DIR", "./data")).resolve() / ".llm_usage_hmac_secret"
 
 
 def _to_plain(value: Any) -> Dict[str, Any]:

@@ -2,14 +2,12 @@
 import unittest
 import sys
 import os
-import sqlite3
-import tempfile
 import threading
 from datetime import date
 from unittest.mock import patch
 
 import pandas as pd
-from sqlalchemy import and_, create_engine as sqlalchemy_create_engine, select
+from sqlalchemy import and_, select
 from sqlalchemy.sql import func
 
 # Ensure src module can be imported
@@ -20,124 +18,9 @@ from src.storage import Base, CURRENT_SCHEMA_VERSION, DatabaseManager, DatabaseS
 
 class TestStorage(unittest.TestCase):
 
-    @staticmethod
-    def _list_sqlite_unique_indexes(db_path: str, table_name: str) -> dict[str, list[str]]:
-        with sqlite3.connect(db_path) as conn:
-            rows = conn.execute(f"PRAGMA index_list({table_name})").fetchall()
-            unique_indexes = {}
-            for row in rows:
-                if int(row[2]) != 1:
-                    continue
-                index_name = row[1]
-                index_columns = []
-                for index_info in conn.execute(f"PRAGMA index_xinfo({index_name})").fetchall():
-                    column_name = index_info[2]
-                    if column_name is not None:
-                        index_columns.append(column_name)
-                unique_indexes[index_name] = index_columns
-            return unique_indexes
-
-    def test_legacy_intelligence_items_url_unique_index_rebuilds_without_collision(self) -> None:
-        temp_dir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(temp_dir.name, "legacy_intel.sqlite")
-
-        try:
-            with sqlite3.connect(db_path) as conn:
-                conn.execute(
-                    """CREATE TABLE intelligence_sources (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    source_type TEXT NOT NULL DEFAULT 'rss',
-                    url TEXT NOT NULL,
-                    scope_type TEXT NOT NULL DEFAULT 'market',
-                    scope_value TEXT,
-                    market TEXT NOT NULL DEFAULT 'cn',
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    last_status TEXT,
-                    last_error TEXT,
-                    last_fetched_at DATETIME,
-                    created_at DATETIME,
-                    updated_at DATETIME
-                )"""
-                )
-                conn.execute(
-                    """CREATE TABLE intelligence_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    source_id INTEGER,
-                    source_name TEXT,
-                    source_type TEXT NOT NULL DEFAULT 'rss',
-                    title TEXT NOT NULL,
-                    summary TEXT,
-                    url TEXT NOT NULL,
-                    source TEXT,
-                    published_at DATETIME,
-                    fetched_at DATETIME,
-                    scope_type TEXT NOT NULL DEFAULT 'market',
-                    scope_value TEXT,
-                    market TEXT NOT NULL DEFAULT 'cn',
-                    raw_payload TEXT
-                )"""
-                )
-                conn.execute("CREATE UNIQUE INDEX uix_intelligence_item_url_legacy ON intelligence_items(url)")
-                conn.execute("CREATE INDEX ix_intel_item_scope_time ON intelligence_items(scope_type, scope_value, market, published_at)")
-                conn.execute("CREATE INDEX ix_intel_item_fetch_time ON intelligence_items(fetched_at)")
-                conn.execute("INSERT INTO intelligence_sources (name, url) VALUES ('legacy', 'https://legacy.example.com/rss.xml')")
-                source_id = conn.execute("SELECT id FROM intelligence_sources WHERE name='legacy'").fetchone()[0]
-                conn.executemany(
-                    """INSERT INTO intelligence_items (
-                    source_id,
-                    source_name,
-                    source_type,
-                    title,
-                    summary,
-                    url,
-                    source,
-                    published_at,
-                    fetched_at,
-                    scope_type,
-                    scope_value,
-                    market,
-                    raw_payload
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    [
-                        (source_id, 'legacy-source', 'rss', 'A', 'legacy-a', 'https://legacy.example.com/a', 'legacy',
-                         '2026-01-01 00:00:00', '2026-01-01 00:00:00', 'market', None, 'cn', None),
-                        (source_id, 'legacy-source', 'rss', 'B', 'legacy-b', 'https://legacy.example.com/b', 'legacy',
-                         '2026-01-02 00:00:00', '2026-01-02 00:00:00', 'market', None, 'cn', None),
-                    ],
-                )
-
-            unique_indexes_before = self._list_sqlite_unique_indexes(db_path, "intelligence_items")
-            self.assertIn("uix_intelligence_item_url_legacy", unique_indexes_before)
-            self.assertEqual(unique_indexes_before["uix_intelligence_item_url_legacy"], ["url"])
-
-            DatabaseManager.reset_instance()
-            Config.reset_instance()
-            DatabaseManager(db_url=f"sqlite:///{db_path}")
-
-            unique_indexes_after = self._list_sqlite_unique_indexes(db_path, "intelligence_items")
-            self.assertNotIn("uix_intelligence_item_url_legacy", unique_indexes_after)
-            self.assertIn("uix_intel_item_scope", unique_indexes_after)
-            self.assertEqual(
-                unique_indexes_after["uix_intel_item_scope"],
-                ["source_id", "url", "scope_type", "scope_value", "market"],
-            )
-            with sqlite3.connect(db_path) as conn:
-                table_count = conn.execute("SELECT COUNT(*) FROM intelligence_items").fetchone()[0]
-                temp_tables = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'intelligence_items_recreate_tmp_%'"
-                ).fetchall()
-
-            self.assertEqual(table_count, 2)
-            self.assertEqual(temp_tables, [])
-        finally:
-            DatabaseManager.reset_instance()
-            Config.reset_instance()
-            temp_dir.cleanup()
-
     def test_database_initialization_records_schema_version(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         with db.get_session() as session:
             row = session.get(DatabaseSchemaMigration, CURRENT_SCHEMA_VERSION)
@@ -150,7 +33,7 @@ class TestStorage(unittest.TestCase):
 
     def test_schema_migration_record_is_idempotent(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         db._ensure_schema_migration_record()
         db._ensure_schema_migration_record()
@@ -166,9 +49,7 @@ class TestStorage(unittest.TestCase):
 
     def test_schema_migration_record_handles_concurrent_initialization(self):
         DatabaseManager.reset_instance()
-        temp_dir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(temp_dir.name, "schema_migration_race.db")
-        db = DatabaseManager(db_url=f"sqlite:///{db_path}")
+        db = DatabaseManager.get_instance()
         worker_count = 8
         barrier = threading.Barrier(worker_count)
         errors = []
@@ -201,38 +82,37 @@ class TestStorage(unittest.TestCase):
         self.assertEqual(rows[0].version, CURRENT_SCHEMA_VERSION)
 
         DatabaseManager.reset_instance()
-        temp_dir.cleanup()
-    
+
     def test_parse_sniper_value(self):
         """测试解析狙击点位数值"""
-        
+
         # 1. 正常数值
         self.assertEqual(DatabaseManager._parse_sniper_value(100), 100.0)
         self.assertEqual(DatabaseManager._parse_sniper_value(100.5), 100.5)
         self.assertEqual(DatabaseManager._parse_sniper_value("100"), 100.0)
         self.assertEqual(DatabaseManager._parse_sniper_value("100.5"), 100.5)
-        
+
         # 2. 包含中文描述和"元"
         self.assertEqual(DatabaseManager._parse_sniper_value("建议在 100 元附近买入"), 100.0)
         self.assertEqual(DatabaseManager._parse_sniper_value("价格：100.5元"), 100.5)
-        
+
         # 3. 包含干扰数字（修复的Bug场景）
         # 之前 "MA5" 会被错误提取为 5.0，现在应该提取 "元" 前面的 100
         text_bug = "无法给出。需等待MA5数据恢复，在股价回踩MA5且乖离率<2%时考虑100元"
         self.assertEqual(DatabaseManager._parse_sniper_value(text_bug), 100.0)
-        
+
         # 4. 更多干扰场景
         text_complex = "MA10为20.5，建议在30元买入"
         self.assertEqual(DatabaseManager._parse_sniper_value(text_complex), 30.0)
-        
+
         text_multiple = "支撑位10元，阻力位20元" # 应该提取最后一个"元"前面的数字，即20，或者更复杂的逻辑？
         # 当前逻辑是找最后一个冒号，然后找之后的第一个"元"，提取中间的数字。
         # 测试没有冒号的情况
         self.assertEqual(DatabaseManager._parse_sniper_value("30元"), 30.0)
-        
+
         # 测试多个数字在"元"之前
         self.assertEqual(DatabaseManager._parse_sniper_value("MA5 10 20元"), 20.0)
-        
+
         # 5. Fallback: no "元" character — extracts last non-MA number
         self.assertEqual(DatabaseManager._parse_sniper_value("102.10-103.00（MA5附近）"), 103.0)
         self.assertEqual(DatabaseManager._parse_sniper_value("97.62-98.50（MA10附近）"), 98.5)
@@ -256,7 +136,7 @@ class TestStorage(unittest.TestCase):
 
     def test_get_chat_sessions_prefix_is_scoped_by_colon_boundary(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         db.save_conversation_message("telegram_12345:chat", "user", "first user")
         db.save_conversation_message("telegram_123456:chat", "user", "second user")
@@ -270,7 +150,7 @@ class TestStorage(unittest.TestCase):
 
     def test_get_chat_sessions_can_include_legacy_exact_session_id(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         db.save_conversation_message("feishu_u1", "user", "legacy chat")
         db.save_conversation_message("feishu_u1:ask_600519", "user", "ask session")
@@ -286,7 +166,7 @@ class TestStorage(unittest.TestCase):
 
     def test_conversation_summary_upsert_and_delete_with_session(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         db.save_conversation_message("summary-session", "user", "hello")
         db.upsert_conversation_summary(
@@ -319,7 +199,7 @@ class TestStorage(unittest.TestCase):
 
     def test_conversation_message_save_returns_id(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         message_id = db.save_conversation_message("message-id-session", "user", "hello")
 
@@ -330,7 +210,7 @@ class TestStorage(unittest.TestCase):
 
     def test_provider_turn_round_trip_preserves_protocol_fields_and_flags(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
         user_id = db.save_conversation_message("trace-session", "user", "question")
         assistant_id = db.save_conversation_message("trace-session", "assistant", "final")
         trace_messages = [
@@ -378,7 +258,7 @@ class TestStorage(unittest.TestCase):
 
     def test_provider_turns_do_not_appear_in_visible_or_web_messages_and_delete_with_session(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
         user_id = db.save_conversation_message("trace-hidden", "user", "visible question")
         assistant_id = db.save_conversation_message("trace-hidden", "assistant", "visible answer")
         db.save_agent_provider_turn(
@@ -418,7 +298,7 @@ class TestStorage(unittest.TestCase):
 
     def test_provider_turn_retention_is_bucketed_by_session_provider_model(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
         for idx in range(5):
             user_id = db.save_conversation_message("retention", "user", f"q{idx}")
             assistant_id = db.save_conversation_message("retention", "assistant", f"a{idx}")
@@ -472,7 +352,7 @@ class TestStorage(unittest.TestCase):
 
     def test_get_visible_conversation_messages_returns_ordered_visible_content(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         db.save_conversation_message("visible-session", "system", "hidden")
         db.save_conversation_message("visible-session", "user", "question")
@@ -490,7 +370,7 @@ class TestStorage(unittest.TestCase):
 
     def test_get_visible_conversation_messages_limit_returns_ordered_tail(self):
         DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
 
         for idx in range(25):
             db.save_conversation_message("visible-limit", "user", f"msg-{idx}")
@@ -503,45 +383,9 @@ class TestStorage(unittest.TestCase):
 
         DatabaseManager.reset_instance()
 
-    def test_file_sqlite_enables_wal_and_busy_timeout(self):
-        temp_dir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(temp_dir.name, "sqlite_pragmas.db")
-        original_env = {
-            "DATABASE_PATH": os.environ.get("DATABASE_PATH"),
-            "SQLITE_BUSY_TIMEOUT_MS": os.environ.get("SQLITE_BUSY_TIMEOUT_MS"),
-            "SQLITE_WAL_ENABLED": os.environ.get("SQLITE_WAL_ENABLED"),
-        }
-
-        try:
-            os.environ["DATABASE_PATH"] = db_path
-            os.environ["SQLITE_BUSY_TIMEOUT_MS"] = "1234"
-            os.environ["SQLITE_WAL_ENABLED"] = "true"
-            Config.reset_instance()
-            DatabaseManager.reset_instance()
-
-            db = DatabaseManager.get_instance()
-            with db.get_session() as session:
-                journal_mode = session.connection().exec_driver_sql("PRAGMA journal_mode").scalar()
-                busy_timeout = session.connection().exec_driver_sql("PRAGMA busy_timeout").scalar()
-
-            self.assertEqual(str(journal_mode).lower(), "wal")
-            self.assertEqual(int(busy_timeout), 1234)
-        finally:
-            DatabaseManager.reset_instance()
-            Config.reset_instance()
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
-            temp_dir.cleanup()
-
     def test_get_instance_waits_for_cold_start_initialization(self):
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        temp_dir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(temp_dir.name, "sqlite_cold_start.db")
-        original_database_path = os.environ.get("DATABASE_PATH")
         create_all_entered = threading.Event()
         competitor_entered = threading.Event()
         release_create_all = threading.Event()
@@ -587,8 +431,6 @@ class TestStorage(unittest.TestCase):
                 competitor_done.set()
 
         try:
-            os.environ["DATABASE_PATH"] = db_path
-            Config.reset_instance()
             with patch.object(Base.metadata, "create_all", side_effect=delayed_create_all):
                 init_thread = threading.Thread(target=initialize_manager)
                 competitor_thread = threading.Thread(target=use_manager)
@@ -618,20 +460,10 @@ class TestStorage(unittest.TestCase):
             release_create_all.set()
             DatabaseManager.reset_instance()
             Config.reset_instance()
-            if original_database_path is None:
-                os.environ.pop("DATABASE_PATH", None)
-            else:
-                os.environ["DATABASE_PATH"] = original_database_path
-            temp_dir.cleanup()
 
     def test_direct_construction_serializes_before_get_instance(self):
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        temp_dir = tempfile.TemporaryDirectory()
-        direct_db_path = os.path.join(temp_dir.name, "direct.db")
-        env_db_path = os.path.join(temp_dir.name, "env.db")
-        direct_db_url = f"sqlite:///{direct_db_path}"
-        original_database_path = os.environ.get("DATABASE_PATH")
         direct_init_entered = threading.Event()
         competitor_entered = threading.Event()
         allow_direct_init = threading.Event()
@@ -643,17 +475,16 @@ class TestStorage(unittest.TestCase):
         original_init = DatabaseManager.__init__
 
         def delayed_direct_init(self, db_url=None):
-            if db_url == direct_db_url:
-                direct_init_entered.set()
-                if not competitor_entered.wait(timeout=5):
-                    raise TimeoutError("Timed out waiting for competitor")
-                if not allow_direct_init.wait(timeout=5):
-                    raise TimeoutError("Timed out waiting to initialize direct instance")
+            direct_init_entered.set()
+            if not competitor_entered.wait(timeout=5):
+                raise TimeoutError("Timed out waiting for competitor")
+            if not allow_direct_init.wait(timeout=5):
+                raise TimeoutError("Timed out waiting to initialize direct instance")
             return original_init(self, db_url=db_url)
 
         def construct_directly() -> None:
             try:
-                db = DatabaseManager(db_url=direct_db_url)
+                db = DatabaseManager()
                 with state_lock:
                     instances.append(db)
             except Exception as exc:
@@ -679,8 +510,6 @@ class TestStorage(unittest.TestCase):
                 competitor_done.set()
 
         try:
-            os.environ["DATABASE_PATH"] = env_db_path
-            Config.reset_instance()
             with patch.object(DatabaseManager, "__init__", new=delayed_direct_init):
                 direct_thread = threading.Thread(target=construct_directly)
                 competitor_thread = threading.Thread(target=use_get_instance)
@@ -705,16 +534,10 @@ class TestStorage(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertEqual(query_values, [1])
             self.assertEqual(len({id(instance) for instance in instances}), 1)
-            self.assertEqual(DatabaseManager._instance._db_url, direct_db_url)
         finally:
             allow_direct_init.set()
             DatabaseManager.reset_instance()
             Config.reset_instance()
-            if original_database_path is None:
-                os.environ.pop("DATABASE_PATH", None)
-            else:
-                os.environ["DATABASE_PATH"] = original_database_path
-            temp_dir.cleanup()
 
     def test_init_cleanup_preserves_original_initialization_error(self):
         DatabaseManager.reset_instance()
@@ -739,85 +562,6 @@ class TestStorage(unittest.TestCase):
             self.assertIs(ctx.exception, original_error)
             self.assertIsNone(DatabaseManager._instance)
         finally:
-            DatabaseManager.reset_instance()
-
-    def test_sqlite_write_transactions_begin_immediate(self):
-        DatabaseManager.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
-        session = db.get_session()
-        connection = session.connection()
-
-        try:
-            with patch.object(db, "get_session", return_value=session):
-                with patch.object(connection, "exec_driver_sql", wraps=connection.exec_driver_sql) as mock_exec:
-                    result = db._run_write_transaction("unit-test", lambda current_session: 7)
-
-            self.assertEqual(result, 7)
-            self.assertTrue(
-                any(call.args == ("BEGIN IMMEDIATE",) for call in mock_exec.call_args_list)
-            )
-        finally:
-            DatabaseManager.reset_instance()
-
-    def test_save_daily_data_sqlite_concurrent_same_code_date_counts_only_new_rows(self):
-        DatabaseManager.reset_instance()
-        temp_dir = tempfile.TemporaryDirectory()
-        db_path = os.path.join(temp_dir.name, "sqlite_daily_concurrency.db")
-        db = DatabaseManager(db_url=f"sqlite:///{db_path}")
-
-        results = []
-        results_lock = threading.Lock()
-        start_barrier = threading.Barrier(2)
-
-        def worker() -> None:
-            start_barrier.wait()
-            count = db.save_daily_data(
-                pd.DataFrame(
-                    [
-                        {
-                            'date': date(2026, 4, 1),
-                            'open': 10,
-                            'high': 11,
-                            'low': 9,
-                            'close': 10.5,
-                            'volume': 100,
-                            'amount': 1050,
-                            'pct_chg': 1.2,
-                            'ma5': 10.1,
-                            'ma10': 10.2,
-                            'ma20': 10.3,
-                            'volume_ratio': 1.0,
-                        }
-                    ]
-                ),
-                code='600519',
-                data_source='test',
-            )
-            with results_lock:
-                results.append(count)
-
-        threads = [threading.Thread(target=worker) for _ in range(2)]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
-
-        try:
-            self.assertCountEqual(results, [1, 0])
-
-            with db.get_session() as session:
-                total = session.execute(
-                    select(func.count()).select_from(StockDaily).where(
-                        and_(
-                            StockDaily.code == '600519',
-                            StockDaily.date == date(2026, 4, 1),
-                        )
-                    )
-                ).scalar()
-
-            self.assertEqual(total, 1)
-        finally:
-            temp_dir.cleanup()
             DatabaseManager.reset_instance()
 
 if __name__ == '__main__':

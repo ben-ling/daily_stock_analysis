@@ -51,7 +51,6 @@ class PortfolioApiTestCase(unittest.TestCase):
                     "STOCK_LIST=600519",
                     "GEMINI_API_KEY=test",
                     "ADMIN_AUTH_ENABLED=false",
-                    f"DATABASE_PATH={self.db_path}",
                 ]
             )
             + "\n",
@@ -59,7 +58,6 @@ class PortfolioApiTestCase(unittest.TestCase):
         )
 
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
         app = create_app(static_dir=self.data_dir / "empty-static")
@@ -70,7 +68,6 @@ class PortfolioApiTestCase(unittest.TestCase):
         DatabaseManager.reset_instance()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
 
     def _save_close(self, symbol: str, on_date: date, close: float) -> None:

@@ -40,22 +40,15 @@ def test_service_imports_without_api_bootstrap() -> None:
 
 
 @pytest.fixture()
-def isolated_db(tmp_path):
-    old_database_path = os.environ.get("DATABASE_PATH")
-    db_path = tmp_path / "decision_signal_service.db"
-    os.environ["DATABASE_PATH"] = str(db_path)
-    Config.reset_instance()
+def isolated_db():
     DatabaseManager.reset_instance()
+    Config.reset_instance()
     db = DatabaseManager.get_instance()
     try:
         yield db
     finally:
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        if old_database_path is None:
-            os.environ.pop("DATABASE_PATH", None)
-        else:
-            os.environ["DATABASE_PATH"] = old_database_path
 
 
 def _payload(**overrides):

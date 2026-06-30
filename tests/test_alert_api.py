@@ -55,7 +55,6 @@ class AlertApiTestCase(unittest.TestCase):
                     "GEMINI_API_KEY=test",
                     "ADMIN_AUTH_ENABLED=false",
                     'AGENT_EVENT_ALERT_RULES_JSON=[{"stock_code":"000001","alert_type":"price_cross","direction":"above","price":10}]',
-                    f"DATABASE_PATH={self.db_path}",
                 ]
             )
             + "\n",
@@ -63,7 +62,6 @@ class AlertApiTestCase(unittest.TestCase):
         )
 
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
         app = create_app(static_dir=self.data_dir / "empty-static")
@@ -74,7 +72,6 @@ class AlertApiTestCase(unittest.TestCase):
         DatabaseManager.reset_instance()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
         _reset_auth_globals()
 

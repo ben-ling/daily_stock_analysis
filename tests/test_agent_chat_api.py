@@ -20,7 +20,7 @@ def teardown_function() -> None:
 def test_chat_session_messages_api_does_not_expose_provider_trace(tmp_path: Path) -> None:
     DatabaseManager.reset_instance()
     Config.reset_instance()
-    db = DatabaseManager(db_url=f"sqlite:///{tmp_path / 'trace.db'}")
+    db = DatabaseManager.get_instance()
     session_id = "api-trace-hidden"
     user_id = db.save_conversation_message(session_id, "user", "visible question")
     assistant_id = db.save_conversation_message(session_id, "assistant", "visible answer")

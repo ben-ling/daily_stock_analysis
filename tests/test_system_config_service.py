@@ -855,8 +855,8 @@ class SystemConfigServiceTestCase(unittest.TestCase):
     def test_get_config_with_schema_hides_unregistered_env_keys(self) -> None:
         self._rewrite_env(
             "STOCK_LIST=600519,000001",
-            "DATABASE_PATH=./custom/stock_analysis.db",
-            "SQLITE_WAL_ENABLED=true",
+            "DATABASE_URL=mysql+pymysql://user:pass@localhost/dsa",
+            "DATA_DIR=./custom-data",
             "USE_PROXY=true",
             "PROXY_HOST=127.0.0.1",
             "PROXY_PORT=10809",
@@ -866,8 +866,8 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         payload = self.service.get_config(include_schema=True)
         items = {item["key"]: item for item in payload["items"]}
 
-        self.assertNotIn("DATABASE_PATH", items)
-        self.assertNotIn("SQLITE_WAL_ENABLED", items)
+        self.assertNotIn("DATABASE_URL", items)
+        self.assertNotIn("DATA_DIR", items)
         self.assertNotIn("USE_PROXY", items)
         self.assertNotIn("PROXY_HOST", items)
         self.assertNotIn("PROXY_PORT", items)
@@ -886,7 +886,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
             "LLM_MY_PROXY_API_KEYS=sk-key-1,sk-key-2",
             "LLM_MY_PROXY_MODELS=gpt-5.5",
             "LLM_UNUSED_API_KEY=sk-should-not-leak",
-            "DATABASE_PATH=./custom/stock_analysis.db",
+            "DATA_DIR=./custom-data",
         )
 
         payload = self.service.get_config(include_schema=True)
@@ -899,21 +899,19 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertEqual(items["LLM_MY_PROXY_MODELS"]["value"], "gpt-5.5")
         self.assertEqual(items["LLM_MY_PROXY_API_KEYS"]["schema"]["category"], "ai_model")
         self.assertNotIn("LLM_UNUSED_API_KEY", items)
-        self.assertNotIn("DATABASE_PATH", items)
+        self.assertNotIn("DATA_DIR", items)
 
     def test_get_config_without_schema_keeps_unregistered_env_keys(self) -> None:
         self._rewrite_env(
             "STOCK_LIST=600519,000001",
-            "DATABASE_PATH=./custom/stock_analysis.db",
-            "SQLITE_WAL_ENABLED=true",
+            "CUSTOM_DESKTOP_NOTE=desktop-only-value",
         )
 
         payload = self.service.get_config(include_schema=False)
         items = {item["key"]: item for item in payload["items"]}
 
-        self.assertEqual(items["DATABASE_PATH"]["value"], "./custom/stock_analysis.db")
-        self.assertEqual(items["SQLITE_WAL_ENABLED"]["value"], "true")
-        self.assertNotIn("schema", items["DATABASE_PATH"])
+        self.assertEqual(items["CUSTOM_DESKTOP_NOTE"]["value"], "desktop-only-value")
+        self.assertNotIn("schema", items["CUSTOM_DESKTOP_NOTE"])
 
     def test_get_setup_status_reports_required_gaps_for_empty_config(self) -> None:
         self._rewrite_env("")
@@ -1253,12 +1251,12 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
     def test_get_setup_status_storage_check_does_not_create_database_parent(self) -> None:
         missing_parent = Path(self.temp_dir.name) / "missing-data"
-        db_path = missing_parent / "stock_analysis.db"
+        data_dir_value = str(missing_parent)
         self._rewrite_env(
             "LITELLM_MODEL=gemini/gemini-3-flash-preview",
             "GEMINI_API_KEY=secret-key-value",
             "STOCK_LIST=600519",
-            f"DATABASE_PATH={db_path}",
+            f"DATA_DIR={data_dir_value}",
         )
 
         with patch.dict(os.environ, {}, clear=True):
@@ -1284,13 +1282,13 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
     def test_export_desktop_env_preserves_hidden_web_settings_keys(self) -> None:
         self.env_path.write_text(
-            "STOCK_LIST=600519\nDATABASE_PATH=./custom/stock_analysis.db\nUSE_PROXY=true\n",
+            "STOCK_LIST=600519\nDATA_DIR=./custom-data\nUSE_PROXY=true\n",
             encoding="utf-8",
         )
 
         payload = self.service.export_desktop_env()
 
-        self.assertIn("DATABASE_PATH=./custom/stock_analysis.db\n", payload["content"])
+        self.assertIn("DATA_DIR=./custom-data\n", payload["content"])
         self.assertIn("USE_PROXY=true\n", payload["content"])
 
     def test_import_desktop_env_merges_keys_without_deleting_unspecified_values(self) -> None:
@@ -1313,12 +1311,12 @@ class SystemConfigServiceTestCase(unittest.TestCase):
 
         self.service.import_desktop_env(
             config_version=current_version,
-            content="DATABASE_PATH=./custom/stock_analysis.db\nPROXY_HOST=127.0.0.1\n",
+            content="DATA_DIR=./custom-data\nPROXY_HOST=127.0.0.1\n",
             reload_now=False,
         )
 
         current_map = self.manager.read_config_map()
-        self.assertEqual(current_map["DATABASE_PATH"], "./custom/stock_analysis.db")
+        self.assertEqual(current_map["DATA_DIR"], "./custom-data")
         self.assertEqual(current_map["PROXY_HOST"], "127.0.0.1")
 
     def test_import_desktop_env_treats_mask_token_as_literal_value(self) -> None:

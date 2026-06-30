@@ -9,8 +9,6 @@ A股自选股智能分析系统 - 新闻情报存储单元测试
 2. 验证无 URL 情况下的兜底去重键
 """
 
-import os
-import sqlite3
 import tempfile
 import unittest
 
@@ -30,10 +28,8 @@ class NewsIntelStorageTestCase(unittest.TestCase):
     def setUp(self) -> None:
         """为每个用例初始化独立数据库"""
         self._temp_dir = tempfile.TemporaryDirectory()
-        self._db_path = os.path.join(self._temp_dir.name, "test_news_intel.db")
-        os.environ["DATABASE_PATH"] = self._db_path
 
-        # 重置配置与数据库单例，确保使用临时库
+        # 重置配置与数据库单例，确保使用测试库
         Config._instance = None
         DatabaseManager.reset_instance()
         self.db = DatabaseManager.get_instance()
@@ -41,6 +37,7 @@ class NewsIntelStorageTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         """清理资源"""
         DatabaseManager.reset_instance()
+        Config._instance = None
         self._temp_dir.cleanup()
 
     def _build_response(self, results) -> SearchResponse:
@@ -162,10 +159,10 @@ class NewsIntelStorageTestCase(unittest.TestCase):
         self.assertEqual(len(recent_news), 1)
         self.assertEqual(recent_news[0].title, "茅台股价震荡")
 
-    def test_save_news_intel_retries_on_sqlite_locked_execute(self) -> None:
+    def test_save_news_intel_retries_on_mysql_deadlock_execute(self) -> None:
         result = SearchResult(
             title="茅台锁竞争重试",
-            snippet="模拟 SQLite locked...",
+            snippet="模拟 MySQL deadlock...",
             url="https://news.example.com/retry",
             source="example.com",
             published_date="2025-01-05",
@@ -177,11 +174,11 @@ class NewsIntelStorageTestCase(unittest.TestCase):
         stmt_exc = OperationalError(
             "COMMIT",
             None,
-            sqlite3.OperationalError("database is locked"),
+            Exception(1213, "Deadlock found when trying to get lock; try restarting transaction"),
         )
 
         with patch.object(self.db, "get_session", side_effect=[first_session, second_session]):
-            with patch.object(first_session, "execute", side_effect=stmt_exc):
+            with patch.object(first_session, "commit", side_effect=stmt_exc):
                 with patch("src.storage.time.sleep") as mock_sleep:
                     saved_count = self.db.save_news_intel(
                         code="600519",
@@ -193,7 +190,6 @@ class NewsIntelStorageTestCase(unittest.TestCase):
 
         self.assertEqual(saved_count, 1)
         self.assertEqual(mock_sleep.call_count, 1)
-        self.assertAlmostEqual(mock_sleep.call_args.args[0], self.db._sqlite_write_retry_base_delay, places=6)
 
         with self.db.get_session() as session:
             total = session.query(NewsIntel).count()

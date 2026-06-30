@@ -23,7 +23,6 @@ RSS_FIXTURE = b'<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><chan
 class IntelligenceApiTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
-        os.environ["DATABASE_PATH"] = os.path.join(self._temp_dir.name, "api_intel.db")
         Config._instance = None
         DatabaseManager.reset_instance()
         self._dns_patcher = patch(
@@ -37,7 +36,6 @@ class IntelligenceApiTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()
         Config._instance = None
-        os.environ.pop("DATABASE_PATH", None)
         self._temp_dir.cleanup()
 
     def _mock_response(self):

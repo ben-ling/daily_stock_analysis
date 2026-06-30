@@ -46,9 +46,6 @@ const MAC_DESKTOP_SYSTEM_PATH_ENTRIES = Object.freeze([
 ]);
 const DESKTOP_UPDATE_RUNTIME_RELATIVE_FILES = Object.freeze([
   '.env',
-  path.join('data', 'stock_analysis.db'),
-  path.join('data', 'stock_analysis.db-wal'),
-  path.join('data', 'stock_analysis.db-shm'),
   path.join('data', 'alphasift', 'hotspots.json'),
   path.join('data', 'alphasift', 'hotspot.history.jsonl'),
   path.join('data', 'alphasift', 'hotspot_details'),
@@ -691,12 +688,12 @@ function extendMacDesktopBackendPath(rawPath) {
   return entries.join(path.delimiter);
 }
 
-function buildBackendEnvironment({ envFile, dbPath, logDir, sourceEnv = process.env }) {
+function buildBackendEnvironment({ envFile, dataDir, logDir, sourceEnv = process.env }) {
   const env = {
     ...sourceEnv,
     DSA_DESKTOP_MODE: 'true',
     ENV_FILE: envFile,
-    DATABASE_PATH: dbPath,
+    DATA_DIR: dataDir,
     LOG_DIR: logDir,
     PYTHONUTF8: '1',
     PYTHONIOENCODING: 'utf-8',
@@ -977,12 +974,12 @@ function waitForHealth(
   });
 }
 
-function startBackend({ port, envFile, dbPath, logDir }) {
+function startBackend({ port, envFile, dataDir, logDir }) {
   const backendPath = resolveBackendPath();
   backendStartError = null;
   const launchStartedAt = Date.now();
 
-  const env = buildBackendEnvironment({ envFile, dbPath, logDir });
+  const env = buildBackendEnvironment({ envFile, dataDir, logDir });
 
   const args = ['--serve-only', '--host', '127.0.0.1', '--port', String(port)];
   let launchMode = '';
@@ -1652,11 +1649,11 @@ async function createWindow() {
   logStartup(`Using port ${port} (selected in ${Date.now() - portFindStartedAt}ms)`);
   logStartup(`App directory=${appDir}`);
 
-  const dbPath = path.join(appDir, 'data', 'stock_analysis.db');
+  const dataDir = path.join(appDir, 'data');
   const logDir = path.join(appDir, 'logs');
 
   try {
-    const launchInfo = startBackend({ port, envFile: envPath, dbPath, logDir });
+    const launchInfo = startBackend({ port, envFile: envPath, dataDir, logDir });
     logStartup(`Backend launch mode=${launchInfo.mode}`);
     logStartup(`Backend launch command=${launchInfo.command}`);
     logStartup(`Backend launch cwd=${launchInfo.cwd}`);

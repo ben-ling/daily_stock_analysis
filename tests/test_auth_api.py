@@ -47,7 +47,6 @@ class AuthApiTestCase(unittest.TestCase):
             encoding="utf-8",
         )
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DATABASE_PATH"] = str(self.data_dir / "test.db")
         Config.reset_instance()
 
         self.auth_patcher = patch.object(auth, "_is_auth_enabled_from_env", return_value=True)
@@ -60,7 +59,6 @@ class AuthApiTestCase(unittest.TestCase):
         self.data_dir_patcher.stop()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
 
     def _read_auth_enabled_from_env(self) -> bool:

@@ -18,7 +18,6 @@ from src.storage import DatabaseManager
 class PersistedIntelligenceAnalysisIntegrationTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
-        os.environ["DATABASE_PATH"] = os.path.join(self._temp_dir.name, "intel_analysis.db")
         Config._instance = None
         DatabaseManager.reset_instance()
         self.config = get_config()
@@ -56,7 +55,6 @@ class PersistedIntelligenceAnalysisIntegrationTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()
         Config._instance = None
-        os.environ.pop("DATABASE_PATH", None)
         self._temp_dir.cleanup()
 
     def test_pipeline_loads_persisted_symbol_and_market_intelligence(self) -> None:

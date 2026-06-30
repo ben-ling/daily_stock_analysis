@@ -24,7 +24,7 @@ from src.storage import DatabaseManager  # noqa: E402
 def _reset_db() -> DatabaseManager:
     DatabaseManager.reset_instance()
     Config.reset_instance()
-    return DatabaseManager(db_url="sqlite:///:memory:")
+    return DatabaseManager.get_instance()
 
 
 def _config(

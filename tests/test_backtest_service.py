@@ -23,12 +23,10 @@ from src.storage import AnalysisHistory, BacktestResult, BacktestSummary, Databa
 class BacktestServiceTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
-        self._db_path = os.path.join(self._temp_dir.name, "test_backtest_service.db")
         self._original_env = {
             key: os.environ.get(key)
             for key in (
                 "ENV_FILE",
-                "DATABASE_PATH",
                 "BACKTEST_EVAL_WINDOW_DAYS",
             )
         }
@@ -37,7 +35,6 @@ class BacktestServiceTestCase(unittest.TestCase):
             env_file.write("STOCK_LIST=600519,000001\n")
 
         os.environ["ENV_FILE"] = self._env_path
-        os.environ["DATABASE_PATH"] = self._db_path
         os.environ["BACKTEST_EVAL_WINDOW_DAYS"] = "3"
 
         Config._instance = None

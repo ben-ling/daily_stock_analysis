@@ -740,8 +740,6 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
 
     def test_persist_market_review_history_saves_markdown_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            old_db_path = os.environ.get("DATABASE_PATH")
-            os.environ["DATABASE_PATH"] = os.path.join(temp_dir, "market_review_history.db")
             Config._instance = None
             DatabaseManager.reset_instance()
             try:
@@ -798,15 +796,9 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
             finally:
                 DatabaseManager.reset_instance()
                 Config._instance = None
-                if old_db_path is None:
-                    os.environ.pop("DATABASE_PATH", None)
-                else:
-                    os.environ["DATABASE_PATH"] = old_db_path
 
     def test_run_market_review_persists_notification_diagnostics_after_history_save(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            old_db_path = os.environ.get("DATABASE_PATH")
-            os.environ["DATABASE_PATH"] = os.path.join(temp_dir, "market_review_notification.db")
             Config._instance = None
             DatabaseManager.reset_instance()
             query_id = "market-task-notification"
@@ -848,15 +840,9 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
                 reset_run_diagnostic_context(token)
                 DatabaseManager.reset_instance()
                 Config._instance = None
-                if old_db_path is None:
-                    os.environ.pop("DATABASE_PATH", None)
-                else:
-                    os.environ["DATABASE_PATH"] = old_db_path
 
     def test_run_market_review_reuses_generated_query_id_for_notification_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            old_db_path = os.environ.get("DATABASE_PATH")
-            os.environ["DATABASE_PATH"] = os.path.join(temp_dir, "market_review_generated_query.db")
             Config._instance = None
             DatabaseManager.reset_instance()
             notifier = self._make_notifier()
@@ -895,10 +881,6 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
                 reset_run_diagnostic_context(token)
                 DatabaseManager.reset_instance()
                 Config._instance = None
-                if old_db_path is None:
-                    os.environ.pop("DATABASE_PATH", None)
-                else:
-                    os.environ["DATABASE_PATH"] = old_db_path
 
 
 if __name__ == "__main__":

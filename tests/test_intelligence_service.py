@@ -47,7 +47,6 @@ NEWSNOW_FIXTURE = {
 class IntelligenceServiceTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
-        os.environ["DATABASE_PATH"] = os.path.join(self._temp_dir.name, "intelligence.db")
         os.environ["NEWS_INTEL_RETENTION_DAYS"] = "30"
         os.environ["NEWS_INTEL_MAX_ITEMS_PER_SOURCE"] = "50"
         os.environ["NEWS_INTEL_FETCH_TIMEOUT_SEC"] = "3"
@@ -88,7 +87,7 @@ class IntelligenceServiceTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()
         Config._instance = None
-        for key in ["DATABASE_PATH", "NEWS_INTEL_RETENTION_DAYS", "NEWS_INTEL_MAX_ITEMS_PER_SOURCE", "NEWS_INTEL_FETCH_TIMEOUT_SEC"]:
+        for key in ["NEWS_INTEL_RETENTION_DAYS", "NEWS_INTEL_MAX_ITEMS_PER_SOURCE", "NEWS_INTEL_FETCH_TIMEOUT_SEC"]:
             os.environ.pop(key, None)
         self._temp_dir.cleanup()
 

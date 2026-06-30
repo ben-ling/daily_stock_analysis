@@ -58,7 +58,6 @@ class PortfolioPr2TestCase(unittest.TestCase):
                     "PORTFOLIO_RISK_STOP_LOSS_ALERT_PCT=25.0",
                     "PORTFOLIO_RISK_STOP_LOSS_NEAR_RATIO=0.8",
                     "PORTFOLIO_RISK_LOOKBACK_DAYS=365",
-                    f"DATABASE_PATH={self.db_path}",
                 ]
             )
             + "\n",
@@ -66,7 +65,6 @@ class PortfolioPr2TestCase(unittest.TestCase):
         )
 
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
 
@@ -82,7 +80,6 @@ class PortfolioPr2TestCase(unittest.TestCase):
         DatabaseManager.reset_instance()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
         self._board_fetch_patcher.stop()
         self.temp_dir.cleanup()
 

@@ -1144,6 +1144,8 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
             self._db_url = db_url
 
+            # MySQL 连接字符集由 DATABASE_URL 的 ?charset=utf8mb4 指定，
+            # 不再在 connect_args 重复硬编码，避免 driver 切换时报错。
             engine_kwargs = {
                 "echo": False,
                 "pool_pre_ping": True,
@@ -1151,7 +1153,6 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 "pool_recycle": 3600,
                 "pool_timeout": 30,
                 "max_overflow": 20,
-                "connect_args": {"charset": "utf8mb4"},
             }
 
             # 创建数据库引擎
@@ -1196,17 +1197,17 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             "description": "Baseline schema created through SQLAlchemy metadata.create_all",
         }
         try:
-            session.execute(DatabaseSchemaMigration.__table__.insert().values(**values))
+            stmt = mysql_insert(DatabaseSchemaMigration).values(**values)
+            stmt = stmt.on_duplicate_key_update(version=stmt.inserted.version)
+            session.execute(stmt)
             session.commit()
-        except IntegrityError:
+        except Exception:
             session.rollback()
+            # 兜底：on_duplicate_key_update 不支持时回退到 select+insert
             with self._SessionLocal() as verify_session:
                 existing = verify_session.get(DatabaseSchemaMigration, CURRENT_SCHEMA_VERSION)
             if existing is None:
                 raise
-        except Exception:
-            session.rollback()
-            raise
         finally:
             session.close()
 

@@ -234,13 +234,11 @@ class AlertWorkerTestCase(unittest.TestCase):
                 "STOCK_LIST=600519",
                 "GEMINI_API_KEY=test",
                 "ADMIN_AUTH_ENABLED=false",
-                f"DATABASE_PATH={self.db_path}",
             ])
             + "\n",
             encoding="utf-8",
         )
         os.environ["ENV_FILE"] = str(self.env_path)
-        os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
         self.service = AlertService()
@@ -249,7 +247,6 @@ class AlertWorkerTestCase(unittest.TestCase):
         DatabaseManager.reset_instance()
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
-        os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
 
     def _config(self, raw_rules: str = "") -> SimpleNamespace:

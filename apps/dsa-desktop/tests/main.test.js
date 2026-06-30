@@ -141,7 +141,7 @@ test('buildBackendEnvironment extends macOS GUI PATH with Homebrew CLI directori
 
   const env = mainModule.buildBackendEnvironment({
     envFile: '/tmp/dsa/.env',
-    dbPath: '/tmp/dsa/data.db',
+    dataDir: '/tmp/dsa/data',
     logDir: '/tmp/dsa/logs',
     sourceEnv: {
       PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
@@ -158,7 +158,7 @@ test('buildBackendEnvironment extends macOS GUI PATH with Homebrew CLI directori
   assert.equal(env.CUSTOM_FLAG, 'kept');
   assert.equal(env.DSA_DESKTOP_MODE, 'true');
   assert.equal(env.ENV_FILE, '/tmp/dsa/.env');
-  assert.equal(env.DATABASE_PATH, '/tmp/dsa/data.db');
+  assert.equal(env.DATA_DIR, '/tmp/dsa/data');
   assert.equal(env.LOG_DIR, '/tmp/dsa/logs');
 });
 
@@ -167,7 +167,7 @@ test('buildBackendEnvironment keeps non-macOS PATH unchanged', (t) => {
 
   const env = mainModule.buildBackendEnvironment({
     envFile: '/tmp/dsa/.env',
-    dbPath: '/tmp/dsa/data.db',
+    dataDir: '/tmp/dsa/data',
     logDir: '/tmp/dsa/logs',
     sourceEnv: {
       PATH: '/custom/bin:/usr/bin',
@@ -486,13 +486,12 @@ test('auto update backup copies AlphaSift hotspot detail directories recursively
   });
 });
 
-test('desktop update backup list includes WAL and SHM artifacts', (t) => {
+test('desktop update backup list includes runtime artifacts', (t) => {
   const mainModule = loadMainModule(t);
   const files = mainModule.DESKTOP_UPDATE_RUNTIME_RELATIVE_FILES || [];
   assert.equal(Array.isArray(files), true);
-  assert.ok(files.includes(path.join('data', 'stock_analysis.db')));
-  assert.ok(files.includes(path.join('data', 'stock_analysis.db-wal')));
-  assert.ok(files.includes(path.join('data', 'stock_analysis.db-shm')));
+  assert.ok(files.includes('.env'));
+  assert.ok(files.includes(path.join('data', 'alphasift', 'hotspots.json')));
   assert.ok(files.includes(path.join('logs', 'desktop.log')));
 });
 
@@ -562,7 +561,7 @@ test('macOS packaged runtime state uses userData and migrates old app bundle fil
   const oldAppDir = path.join(tempRoot, 'Daily Stock Analysis.app', 'Contents', 'MacOS');
   const userDataDir = path.join(tempRoot, 'userData');
   const exePath = path.join(oldAppDir, 'Daily Stock Analysis');
-  const oldDbPath = path.join(oldAppDir, 'data', 'stock_analysis.db');
+  const oldDbPath = path.join(oldAppDir, 'data', 'alphasift', 'hotspots.json');
   const oldLogPath = path.join(oldAppDir, 'logs', 'desktop.log');
   const oldHotspotDetailPath = path.join(oldAppDir, 'data', 'alphasift', 'hotspot_details', 'AI算力', 'detail.json');
 
@@ -572,7 +571,7 @@ test('macOS packaged runtime state uses userData and migrates old app bundle fil
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.writeFileSync(exePath, '');
   fs.writeFileSync(path.join(oldAppDir, '.env'), 'OPENAI_API_KEY=old-key\n', 'utf-8');
-  fs.writeFileSync(oldDbPath, 'old-db');
+  fs.writeFileSync(oldDbPath, 'old-hotspots');
   fs.writeFileSync(oldLogPath, 'old-log\n', 'utf-8');
   fs.writeFileSync(oldHotspotDetailPath, '{"topic":"AI算力"}\n', 'utf-8');
 
@@ -600,13 +599,13 @@ test('macOS packaged runtime state uses userData and migrates old app bundle fil
     [...migrationResult.migrated].sort(),
     [
       '.env',
-      path.join('data', 'stock_analysis.db'),
+      path.join('data', 'alphasift', 'hotspots.json'),
       path.join('data', 'alphasift', 'hotspot_details'),
       path.join('logs', 'desktop.log'),
     ].sort()
   );
   assert.equal(fs.readFileSync(path.join(userDataDir, '.env'), 'utf-8'), 'OPENAI_API_KEY=old-key\n');
-  assert.equal(fs.readFileSync(path.join(userDataDir, 'data', 'stock_analysis.db'), 'utf-8'), 'old-db');
+  assert.equal(fs.readFileSync(path.join(userDataDir, 'data', 'alphasift', 'hotspots.json'), 'utf-8'), 'old-hotspots');
   assert.equal(
     fs.readFileSync(path.join(userDataDir, 'data', 'alphasift', 'hotspot_details', 'AI算力', 'detail.json'), 'utf-8'),
     '{"topic":"AI算力"}\n'
@@ -655,14 +654,14 @@ test('restorePackagedRuntimeStateFromBackup keeps backup when copy fails', (t) =
   const appDir = path.join(tempRoot, 'app');
   const userDataDir = path.join(tempRoot, 'userData');
   const backupRoot = path.join(userDataDir, '.dsa-desktop-update-backup');
-  const backupDbPath = path.join(backupRoot, 'data', 'stock_analysis.db');
+  const backupDbPath = path.join(backupRoot, 'data', 'alphasift', 'hotspots.json');
   fs.mkdirSync(path.dirname(backupDbPath), { recursive: true });
   fs.mkdirSync(appDir, { recursive: true });
   fs.writeFileSync(path.join(appDir, 'Uninstall Daily Stock Analysis.exe'), '');
-  fs.writeFileSync(backupDbPath, 'backup-db');
+  fs.writeFileSync(backupDbPath, 'backup-hotspots');
   fs.writeFileSync(
     path.join(backupRoot, 'runtime-state.json'),
-    JSON.stringify({ files: [path.join('data', 'stock_analysis.db')] }),
+    JSON.stringify({ files: [path.join('data', 'alphasift', 'hotspots.json')] }),
     'utf-8'
   );
 
@@ -709,16 +708,16 @@ test('restorePackagedRuntimeStateFromBackup removes restored files from pending 
   const userDataDir = path.join(tempRoot, 'userData');
   const backupRoot = path.join(userDataDir, '.dsa-desktop-update-backup');
   const backupEnvPath = path.join(backupRoot, '.env');
-  const backupDbPath = path.join(backupRoot, 'data', 'stock_analysis.db');
+  const backupDbPath = path.join(backupRoot, 'data', 'alphasift', 'hotspots.json');
   const targetEnvPath = path.join(appDir, '.env');
   const manifestPath = path.join(backupRoot, 'runtime-state.json');
-  const dbRelativePath = path.join('data', 'stock_analysis.db');
+  const dbRelativePath = path.join('data', 'alphasift', 'hotspots.json');
 
   fs.mkdirSync(path.dirname(backupDbPath), { recursive: true });
   fs.mkdirSync(appDir, { recursive: true });
   fs.writeFileSync(path.join(appDir, 'Uninstall Daily Stock Analysis.exe'), '');
   fs.writeFileSync(backupEnvPath, 'backup-env\n', 'utf-8');
-  fs.writeFileSync(backupDbPath, 'backup-db');
+  fs.writeFileSync(backupDbPath, 'backup-hotspots');
   fs.writeFileSync(targetEnvPath, 'current-env\n', 'utf-8');
   fs.writeFileSync(
     manifestPath,

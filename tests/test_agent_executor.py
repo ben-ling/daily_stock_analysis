@@ -1160,7 +1160,7 @@ class TestAgentExecutor(unittest.TestCase):
     def test_chat_persists_single_provider_trace_and_reinjects_without_duplication(self):
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
         registry = _make_registry_with_echo()
         adapter = _make_mock_adapter()
         adapter._config = SimpleNamespace(

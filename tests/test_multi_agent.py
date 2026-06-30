@@ -1222,7 +1222,7 @@ class TestOrchestratorExecution(unittest.TestCase):
 
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        db = DatabaseManager(db_url="sqlite:///:memory:")
+        db = DatabaseManager.get_instance()
         session_id = "multi-agent-trace-boundary"
         user_id = db.save_conversation_message(session_id, "user", "previous question")
         assistant_id = db.save_conversation_message(session_id, "assistant", "previous answer")

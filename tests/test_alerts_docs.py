@@ -68,7 +68,6 @@ def test_alerts_doc_covers_storage_evaluation_and_rollback() -> None:
         "src/storage.py",
         "src/repositories/",
         "src/services/",
-        "data/stock_analysis.db",
         "幂等初始化",
         "回滚说明",
     ):
@@ -151,9 +150,10 @@ def test_alerts_doc_describes_p1_rollback_for_created_tables() -> None:
 
     for token in (
         "P1 新增 Alert API 代码",
-        "`alert_rules` / `alert_triggers` / `alert_notifications` SQLite 表",
+        "alert_rules",
+        "alert_triggers",
+        "alert_notifications",
         "Base.metadata.create_all()",
-        "SQLite 表与数据不会自动删除",
         "手动删除相关表",
     ):
         assert token in doc

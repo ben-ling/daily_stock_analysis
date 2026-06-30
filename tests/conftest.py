@@ -23,19 +23,24 @@ from anyio._backends import _asyncio
 
 T = TypeVar("T")
 
-# MySQL 测试库连接 URL。未设置时回退到本地开发库，便于无 CI 环境时跳过 DB 测试。
-TEST_DB_URL = os.getenv(
-    "DATABASE_URL_TEST",
-    "mysql+pymysql://root:jbl012345@localhost:3306/stock_analysis_test?charset=utf8mb4",
-)
+# MySQL 测试库连接 URL。未配置 DATABASE_URL_TEST 时，DB 测试会因
+# DATABASE_URL 未设置而明确失败（Config.get_db_url() 抛 RuntimeError），
+# 纯单测不受影响。
+TEST_DB_URL = os.getenv("DATABASE_URL_TEST")
+
+if TEST_DB_URL:
+    # 让后端 Config.get_db_url() 能读到测试库连接串
+    os.environ.setdefault("DATABASE_URL", TEST_DB_URL)
 
 
 def _truncate_mysql_test_db() -> None:
     """Truncate all tables in the MySQL test database.
 
     Called as an autouse fixture so every test starts from a clean state.
-    Silently skips when MySQL is unavailable (e.g. pure unit tests).
+    Skips silently when no test DB is configured (pure unit tests).
     """
+    if not TEST_DB_URL:
+        return
     try:
         from sqlalchemy import create_engine, text
 
@@ -49,9 +54,13 @@ def _truncate_mysql_test_db() -> None:
                 conn.execute(text("SET FOREIGN_KEY_CHECKS=1"))
         finally:
             engine.dispose()
-    except Exception:
-        # 无 DB 时跳过（纯单测不需要 DB）
-        pass
+    except Exception as exc:
+        # DB 不可用时跳过 truncate；DB 测试会因连接失败而明确报错，
+        # 纯单测不调 DatabaseManager，不受影响。
+        import logging
+        logging.getLogger(__name__).warning(
+            "MySQL 测试库不可用，已跳过 truncate: %s", exc,
+        )
 
 
 @pytest.fixture(autouse=True)

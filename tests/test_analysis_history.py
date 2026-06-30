@@ -123,12 +123,10 @@ class AnalysisHistoryTestCase(unittest.TestCase):
         """为每个用例初始化独立数据库"""
         auth._auth_enabled = False
         self._temp_dir = tempfile.TemporaryDirectory()
-        self._db_path = os.path.join(self._temp_dir.name, "test_analysis_history.db")
         self._original_env = {
             key: os.environ.get(key)
             for key in (
                 "ENV_FILE",
-                "DATABASE_PATH",
             )
         }
         self._env_path = os.path.join(self._temp_dir.name, ".env")
@@ -136,7 +134,6 @@ class AnalysisHistoryTestCase(unittest.TestCase):
             env_file.write("STOCK_LIST=600519,000001\n")
 
         os.environ["ENV_FILE"] = self._env_path
-        os.environ["DATABASE_PATH"] = self._db_path
 
         Config._instance = None
         DatabaseManager.reset_instance()

@@ -168,7 +168,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             trading_day_check_enabled=True,
             market_review_enabled=True,
             market_review_region="jp,kr",
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
 
         stock_codes = ["cn-stock", "jp-stock", "kr-stock", "us-stock", "none-stock"]
@@ -1005,7 +1005,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1045,7 +1045,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1076,7 +1076,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1110,7 +1110,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1201,7 +1201,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1259,7 +1259,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline._daily_market_context_service = None
@@ -1303,7 +1303,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=True,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline._daily_market_context_service = None
@@ -1347,7 +1347,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         events = []
@@ -1415,7 +1415,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1487,7 +1487,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1535,7 +1535,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1597,7 +1597,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=2,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         events = []
@@ -1678,7 +1678,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=True,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
             report_type="simple",
         )
         pipeline = MagicMock()
@@ -1755,7 +1755,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         run_review = MagicMock(return_value="复盘结果")
 
@@ -1779,7 +1779,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline._daily_market_context_service = MagicMock()
@@ -1831,7 +1831,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             single_stock_notify=False,
             merge_email_notification=False,
             analysis_delay=0,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         pipeline = MagicMock()
         pipeline.run.return_value = []
@@ -1857,7 +1857,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             trading_day_check_enabled=True,
             market_review_region="both",
             market_review_enabled=False,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         runtime_notifier = MagicMock()
         runtime_analyzer = MagicMock()
@@ -1900,7 +1900,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
             trading_day_check_enabled=True,
             market_review_region="jp,kr",
             market_review_enabled=False,
-            database_path=str(Path(self.temp_dir.name) / "stock_analysis.db"),
+            data_dir=str(Path(self.temp_dir.name) / "stock_analysis.db"),
         )
         runtime_notifier = MagicMock()
         runtime_analyzer = MagicMock()

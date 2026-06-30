@@ -45,8 +45,6 @@ def _snapshot(region: str, trade_date: str, score: int = 50) -> dict:
 class MarketLightServiceTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.db_path = Path(self.temp_dir.name) / "market_light.db"
-        os.environ["DATABASE_PATH"] = str(self.db_path)
         Config.reset_instance()
         DatabaseManager.reset_instance()
         self.db = DatabaseManager.get_instance()
@@ -54,7 +52,6 @@ class MarketLightServiceTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         DatabaseManager.reset_instance()
         Config.reset_instance()
-        os.environ.pop("DATABASE_PATH", None)
         self.temp_dir.cleanup()
 
     def test_normalize_market_region_rejects_unknown_regions(self) -> None:

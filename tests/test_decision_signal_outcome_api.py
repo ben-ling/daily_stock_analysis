@@ -34,9 +34,7 @@ def _reset_auth_globals() -> None:
 @pytest.fixture()
 def client_and_db(tmp_path):
     old_env_file = os.environ.get("ENV_FILE")
-    old_database_path = os.environ.get("DATABASE_PATH")
     env_path = tmp_path / ".env"
-    db_path = tmp_path / "decision_signal_outcome_api.db"
     static_dir = tmp_path / "empty-static"
     static_dir.mkdir()
     env_path.write_text(
@@ -45,14 +43,12 @@ def client_and_db(tmp_path):
                 "STOCK_LIST=600519",
                 "GEMINI_API_KEY=test",
                 "ADMIN_AUTH_ENABLED=false",
-                f"DATABASE_PATH={db_path}",
             ]
         )
         + "\n",
         encoding="utf-8",
     )
     os.environ["ENV_FILE"] = str(env_path)
-    os.environ["DATABASE_PATH"] = str(db_path)
     _reset_auth_globals()
     Config.reset_instance()
     DatabaseManager.reset_instance()
@@ -69,10 +65,6 @@ def client_and_db(tmp_path):
             os.environ.pop("ENV_FILE", None)
         else:
             os.environ["ENV_FILE"] = old_env_file
-        if old_database_path is None:
-            os.environ.pop("DATABASE_PATH", None)
-        else:
-            os.environ["DATABASE_PATH"] = old_database_path
 
 
 def _payload(**overrides):

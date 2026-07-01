@@ -1422,14 +1422,22 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         query_ctx = query_context or {}
         current_query_id = (query_ctx.get("query_id") or "").strip()
 
+        def _clean_utf8_string(value: str) -> str:
+            if not value:
+                return value
+            try:
+                return value.encode('utf-8', 'ignore').decode('utf-8')
+            except:
+                return value
+
         def _write(session: Session) -> int:
             local_saved_count = 0
 
             for item in response.results:
-                title = (item.title or '').strip()
-                url = (item.url or '').strip()
-                source = (item.source or '').strip()
-                snippet = (item.snippet or '').strip()
+                title = _clean_utf8_string((item.title or '').strip())
+                url = _clean_utf8_string((item.url or '').strip())
+                source = _clean_utf8_string((item.source or '').strip())
+                snippet = _clean_utf8_string((item.snippet or '').strip())
                 published_date = self._parse_published_date(item.published_date)
 
                 if not title and not url:
@@ -2209,22 +2217,21 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             for i in range(0, len(records), _MYSQL_CHUNK):
                 chunk = records[i : i + _MYSQL_CHUNK]
                 stmt = mysql_insert(StockDaily).values(chunk)
-                excluded = stmt.excluded
                 session.execute(
                     stmt.on_duplicate_key_update(
-                        open=excluded.open,
-                        high=excluded.high,
-                        low=excluded.low,
-                        close=excluded.close,
-                        volume=excluded.volume,
-                        amount=excluded.amount,
-                        pct_chg=excluded.pct_chg,
-                        ma5=excluded.ma5,
-                        ma10=excluded.ma10,
-                        ma20=excluded.ma20,
-                        volume_ratio=excluded.volume_ratio,
-                        data_source=excluded.data_source,
-                        updated_at=excluded.updated_at,
+                        open=stmt.inserted.open,
+                        high=stmt.inserted.high,
+                        low=stmt.inserted.low,
+                        close=stmt.inserted.close,
+                        volume=stmt.inserted.volume,
+                        amount=stmt.inserted.amount,
+                        pct_chg=stmt.inserted.pct_chg,
+                        ma5=stmt.inserted.ma5,
+                        ma10=stmt.inserted.ma10,
+                        ma20=stmt.inserted.ma20,
+                        volume_ratio=stmt.inserted.volume_ratio,
+                        data_source=stmt.inserted.data_source,
+                        updated_at=stmt.inserted.updated_at,
                     )
                 )
             return new_count

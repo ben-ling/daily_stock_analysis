@@ -1426,9 +1426,18 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             if not value:
                 return value
             try:
+                value.encode('utf-8').decode('utf-8')
+                return value
+            except UnicodeEncodeError:
+                pass
+            try:
+                return value.encode('utf-8', 'surrogatepass').decode('utf-8', 'replace')
+            except:
+                pass
+            try:
                 return value.encode('utf-8', 'ignore').decode('utf-8')
             except:
-                return value
+                return str(value)[:5000] if len(str(value)) > 5000 else str(value)
 
         def _write(session: Session) -> int:
             local_saved_count = 0

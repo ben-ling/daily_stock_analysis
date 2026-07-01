@@ -389,10 +389,10 @@ const getHotspotStrength = (item: AlphaSiftHotspot, index: number) => {
   const heat = Number(item.heatScore ?? 0);
   const changePct = Number(item.changePct ?? 0);
   if (index === 0 || heat >= 90 || changePct >= 8) {
-    return { label: '强势领先', className: 'bg-red-500/10 text-red-500' };
+    return { label: '强势领先', className: 'bg-danger/10 text-danger' };
   }
   if (heat >= 80 || changePct >= 5) {
-    return { label: '强势', className: 'bg-blue-500/10 text-blue-500' };
+    return { label: '强势', className: 'bg-cyan/10 text-cyan' };
   }
   return { label: '较强', className: 'bg-cyan/10 text-cyan' };
 };
@@ -402,18 +402,18 @@ const HOTSPOT_ICON_RULES: Array<{
   icon: React.ComponentType<{ className?: string }>;
   className: string;
 }> = [
-  { pattern: /金|银|铜|铝|铅|锌|钼|钴|镍|贵金属|矿|有色/, icon: Pickaxe, className: 'bg-orange-500/10 text-orange-500' },
-  { pattern: /黄金|珠宝/, icon: Gem, className: 'bg-amber-500/10 text-amber-500' },
-  { pattern: /油|气|能源|煤/, icon: Droplet, className: 'bg-yellow-700/10 text-yellow-700' },
-  { pattern: /金融|券商|银行|保险|资本/, icon: Landmark, className: 'bg-orange-500/10 text-orange-500' },
-  { pattern: /航空|机场|航天|运输/, icon: Plane, className: 'bg-blue-500/10 text-blue-500' },
-  { pattern: /林业|农业|种植/, icon: Trees, className: 'bg-emerald-500/10 text-emerald-500' },
-  { pattern: /医疗|诊断|卫生|医药/, icon: Stethoscope, className: 'bg-teal-500/10 text-teal-500' },
-  { pattern: /食品|餐饮|酒/, icon: Utensils, className: 'bg-violet-500/10 text-violet-500' },
-  { pattern: /工业|制造|修理|机械|设备/, icon: Wrench, className: 'bg-blue-500/10 text-blue-500' },
-  { pattern: /租赁|地产|建筑/, icon: Building2, className: 'bg-emerald-500/10 text-emerald-500' },
-  { pattern: /电|芯片|算力|AI|机器人/, icon: Factory, className: 'bg-indigo-500/10 text-indigo-500' },
-  { pattern: /保险|安全/, icon: Shield, className: 'bg-blue-500/10 text-blue-500' },
+  { pattern: /金|银|铜|铝|铅|锌|钼|钴|镍|贵金属|矿|有色/, icon: Pickaxe, className: 'bg-danger/10 text-danger' },
+  { pattern: /黄金|珠宝/, icon: Gem, className: 'bg-warning/10 text-warning' },
+  { pattern: /油|气|能源|煤/, icon: Droplet, className: 'bg-warning/10 text-warning' },
+  { pattern: /金融|券商|银行|保险|资本/, icon: Landmark, className: 'bg-warning/10 text-warning' },
+  { pattern: /航空|机场|航天|运输/, icon: Plane, className: 'bg-cyan/10 text-cyan' },
+  { pattern: /林业|农业|种植/, icon: Trees, className: 'bg-success/10 text-success' },
+  { pattern: /医疗|诊断|卫生|医药/, icon: Stethoscope, className: 'bg-cyan/10 text-cyan' },
+  { pattern: /食品|餐饮|酒/, icon: Utensils, className: 'bg-warning/10 text-warning' },
+  { pattern: /工业|制造|修理|机械|设备/, icon: Wrench, className: 'bg-cyan/10 text-cyan' },
+  { pattern: /租赁|地产|建筑/, icon: Building2, className: 'bg-success/10 text-success' },
+  { pattern: /电|芯片|算力|AI|机器人/, icon: Factory, className: 'bg-cyan/10 text-cyan' },
+  { pattern: /保险|安全/, icon: Shield, className: 'bg-cyan/10 text-cyan' },
 ];
 
 const getHotspotIcon = (topic: string) => {

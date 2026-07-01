@@ -6,7 +6,7 @@ import { decisionSignalsApi } from '../api/decisionSignals';
 import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
+import { ApiErrorAlert, Button, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
 import { PortfolioSignalSummary } from '../components/decision-signals/DecisionSignalDisplay';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { formatUiText } from '../i18n/uiText';
@@ -995,9 +995,10 @@ const PortfolioPage: React.FC = () => {
                 </select>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="btn-secondary text-sm flex-1"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
                   onClick={() => {
                     setShowCreateAccount((prev) => !prev);
                     setAccountCreateError(null);
@@ -1005,23 +1006,25 @@ const PortfolioPage: React.FC = () => {
                   }}
                 >
                   {showCreateAccount ? text.collapseCreate : text.createAccount}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
                   onClick={() => void handleRefresh()}
                   disabled={isLoading || fxRefreshing}
-                  className="btn-secondary text-sm flex-1"
                 >
                   {isLoading ? text.refreshing : text.refreshData}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="danger-subtle"
+                  size="sm"
+                  className="flex-1"
                   onClick={openAccountDeleteDialog}
                   disabled={!canDeleteSelectedAccount}
-                  className="btn-secondary text-sm flex-1 border-danger/40 text-danger hover:bg-danger/15 disabled:border-border/60 disabled:text-secondary"
                 >
                   {accountDeleteLoading ? text.deletingAccount : text.deleteAccount}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -1062,9 +1065,10 @@ const PortfolioPage: React.FC = () => {
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-foreground">新建账户</h2>
             {hasAccounts ? (
-              <button
-                type="button"
-                className="btn-secondary text-xs px-3 py-1"
+              <Button
+                variant="secondary"
+                size="xsm"
+                className="text-xs"
                 onClick={() => {
                   setShowCreateAccount(false);
                   setAccountCreateError(null);
@@ -1072,7 +1076,7 @@ const PortfolioPage: React.FC = () => {
                 }}
               >
                 收起
-              </button>
+              </Button>
             ) : (
               <span className="text-xs text-secondary">创建后自动切换到该账户</span>
             )}
@@ -1258,14 +1262,15 @@ const PortfolioPage: React.FC = () => {
                         <PortfolioSignalSummary item={signal} loading={portfolioSignalsLoading} />
                       </td>
                       <td className="py-2 text-right">
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="xsm"
                           onClick={() => void handleAnalyzePosition(row)}
                           disabled={analyzing}
-                          className="btn-secondary px-2 py-1 text-xs disabled:cursor-wait disabled:opacity-60"
+                          className="disabled:cursor-wait"
                         >
                           {analyzing ? text.submitting : text.analyze}
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                     );

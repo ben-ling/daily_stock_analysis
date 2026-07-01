@@ -6,6 +6,7 @@ import { getParsedApiError, type ParsedApiError } from '../api/error';
 import {
   ApiErrorAlert,
   AppPage,
+  Button,
   Card,
   ConfirmDialog,
   Drawer,
@@ -628,10 +629,10 @@ const DecisionSignalsPage: React.FC = () => {
               <option value="">{t('decisionSignals.allStatuses')}</option>
               {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{t(STATUS_LABEL_KEYS[status])}</option>)}
             </select>
-            <button type="submit" className="btn-primary inline-flex h-11 items-center justify-center gap-2">
+            <Button type="submit" variant="primary" size="lg">
               <Search className="h-4 w-4" />
               {t('decisionSignals.filter')}
-            </button>
+            </Button>
           </form>
         </Card>
 
@@ -686,10 +687,10 @@ const DecisionSignalsPage: React.FC = () => {
               placeholder={t('decisionSignals.latestPlaceholder')}
               aria-label={t('decisionSignals.latestInput')}
             />
-            <button type="submit" className="btn-secondary inline-flex h-11 items-center justify-center gap-2" disabled={latestLoading || !latestStockCode.trim()}>
+            <Button type="submit" variant="secondary" size="lg" disabled={latestLoading || !latestStockCode.trim()}>
               <Search className="h-4 w-4" />
               {t('decisionSignals.latestButton')}
-            </button>
+            </Button>
           </form>
           {latestError ? <ApiErrorAlert className="mt-3" error={latestError} /> : null}
           {latestSearched && !latestLoading && !latestError && latestItems.length === 0 ? (

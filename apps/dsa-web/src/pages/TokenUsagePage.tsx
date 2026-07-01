@@ -185,7 +185,7 @@ const TokenUsagePage: React.FC = () => {
         {loading && !dashboard ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-28 animate-pulse rounded-2xl border border-border/70 bg-card/60" />
+              <div key={`skeleton-${index}`} className="h-28 animate-pulse rounded-2xl border border-border/70 bg-card/60" />
             ))}
           </div>
         ) : null}

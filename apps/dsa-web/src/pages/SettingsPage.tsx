@@ -550,7 +550,7 @@ const SchedulerSettingsCard: React.FC<SchedulerSettingsCardProps> = ({
     if (scheduleEnabledOverride === null && isRuntimeDerived) {
       setScheduleEnabledOverride(null);
     }
-  }, [scheduleEnabledItem?.value, scheduleEnabledOverride, statusRefreshToken]);
+  }, [scheduleEnabledItem?.value, scheduleEnabledOverride, status, statusRefreshToken]);
 
   useEffect(() => {
     if (!onSchedulerStateChange) {
@@ -641,7 +641,7 @@ const SchedulerSettingsCard: React.FC<SchedulerSettingsCardProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 {scheduleTimes.map((time, index) => (
                   <div
-                    key={index}
+                    key={`schedule-time-${index}`}
                     className="inline-flex h-11 shrink-0 items-center gap-1 rounded-xl border settings-border bg-card/90 p-1 shadow-inner"
                   >
                     <input

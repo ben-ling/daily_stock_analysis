@@ -21,6 +21,7 @@ const PageButton: React.FC<PageButtonProps> = ({ page, isActive, disabled, onCli
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(
         'inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-xl border px-3 text-sm font-medium transition-all duration-200',
         isActive

@@ -1143,7 +1143,8 @@ textarea {
   transition:
     transform 0.24s ease,
     box-shadow 0.24s ease,
-    border-color 0.24s ease;
+    border-color 0.24s ease,
+    background 0.24s ease;
 }
 
 .terminal-card-hover:hover {

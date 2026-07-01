@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recharts';
+import { useTheme } from 'next-themes';
 import { decisionSignalsApi } from '../api/decisionSignals';
 import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
@@ -53,7 +54,8 @@ import { areStockCodesEquivalent, normalizeStockCode } from '../utils/stockCode'
 import { parseDecisionSignalDate } from '../utils/decisionSignalTime';
 import { buildDecisionActionLabelMap, getDecisionActionLabel } from '../utils/decisionAction';
 
-const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
+const LIGHT_PIE_COLORS = ['#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
+const DARK_PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
 const DEFAULT_PAGE_SIZE = 20;
 const PORTFOLIO_SIGNAL_LOOKUP_CONCURRENCY = 6;
 const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
@@ -181,6 +183,8 @@ async function loadPortfolioSignalLookup(lookup: PortfolioSignalLookup): Promise
 
 const PortfolioPage: React.FC = () => {
   const { language, t } = useUiLanguage();
+  const { resolvedTheme } = useTheme();
+  const pieColors = useMemo(() => (resolvedTheme === 'dark' ? DARK_PIE_COLORS : LIGHT_PIE_COLORS), [resolvedTheme]);
   const text = PORTFOLIO_TEXT[language];
   const decisionActionLabels = useMemo(() => buildDecisionActionLabelMap(t), [t]);
 
@@ -962,7 +966,7 @@ const PortfolioPage: React.FC = () => {
           </p>
         </div>
         {hasAccounts ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <div className="rounded-xl border border-border/60 bg-card p-3">
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px_280px] gap-2 items-end">
               <div>
                 <p className="text-xs text-secondary mb-1">{text.accountView}</p>
@@ -1014,7 +1018,7 @@ const PortfolioPage: React.FC = () => {
                   type="button"
                   onClick={openAccountDeleteDialog}
                   disabled={!canDeleteSelectedAccount}
-                  className="btn-secondary text-sm flex-1 border-red-400/40 text-red-100 hover:bg-red-500/15 disabled:border-white/10 disabled:text-secondary"
+                  className="btn-secondary text-sm flex-1 border-danger/40 text-danger hover:bg-danger/15 disabled:border-border/60 disabled:text-secondary"
                 >
                   {accountDeleteLoading ? text.deletingAccount : text.deleteAccount}
                 </button>
@@ -1196,7 +1200,7 @@ const PortfolioPage: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[860px] w-full text-sm">
-                <thead className="text-xs text-secondary border-b border-white/10">
+                <thead className="text-xs text-secondary border-b border-border/60">
                   <tr>
                     <th className="text-left py-2 pr-2">{text.account}</th>
                     <th className="text-left py-2 pr-2">{text.code}</th>
@@ -1216,7 +1220,7 @@ const PortfolioPage: React.FC = () => {
                     const analyzing = positionAnalysisLoadingKey === rowKey;
                     const signal = signalByPositionKey.get(rowKey);
                     return (
-                    <tr key={rowKey} className="border-b border-white/5">
+                    <tr key={rowKey} className="border-b border-border/40">
                       <td className="py-2 pr-2 text-secondary">{row.accountName}</td>
                       <td className="py-2 pr-2 font-mono text-foreground">{row.symbol}</td>
                       <td className="py-2 pr-2 text-right">{row.quantity.toFixed(2)}</td>
@@ -1282,7 +1286,7 @@ const PortfolioPage: React.FC = () => {
                 <PieChart>
                   <Pie data={concentrationPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
                     {concentrationPieData.map((entry, index) => (
-                      <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      <Cell key={`cell-${entry.name}`} fill={pieColors[index % pieColors.length]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
@@ -1550,9 +1554,9 @@ const PortfolioPage: React.FC = () => {
             <div className="text-[11px] text-secondary">
               {writeBlocked ? '删除修正仅在单账户视图可用。请先选择具体账户后再删除错误流水。' : '如有错误流水，可直接删除后重新录入。'}
             </div>
-            <div className="max-h-64 overflow-auto rounded-lg border border-white/10 p-2">
+            <div className="max-h-64 overflow-auto rounded-lg border border-border/60 p-2">
               {eventType === 'trade' && tradeEvents.map((item) => (
-                <div key={`t-${item.id}`} className="flex items-start justify-between gap-3 border-b border-white/5 py-2 text-xs text-secondary">
+                <div key={`t-${item.id}`} className="flex items-start justify-between gap-3 border-b border-border/40 py-2 text-xs text-secondary">
                   <div className="min-w-0">
                     {item.tradeDate} {formatSideLabel(item.side)} {item.symbol} 数量={item.quantity} 价格={item.price}
                   </div>
@@ -1572,7 +1576,7 @@ const PortfolioPage: React.FC = () => {
                 </div>
               ))}
               {eventType === 'cash' && cashEvents.map((item) => (
-                <div key={`c-${item.id}`} className="flex items-start justify-between gap-3 border-b border-white/5 py-2 text-xs text-secondary">
+                <div key={`c-${item.id}`} className="flex items-start justify-between gap-3 border-b border-border/40 py-2 text-xs text-secondary">
                   <div className="min-w-0">
                     {item.eventDate} {formatCashDirectionLabel(item.direction)} {item.amount} {item.currency}
                   </div>
@@ -1592,7 +1596,7 @@ const PortfolioPage: React.FC = () => {
                 </div>
               ))}
               {eventType === 'corporate' && corporateEvents.map((item) => (
-                <div key={`ca-${item.id}`} className="flex items-start justify-between gap-3 border-b border-white/5 py-2 text-xs text-secondary">
+                <div key={`ca-${item.id}`} className="flex items-start justify-between gap-3 border-b border-border/40 py-2 text-xs text-secondary">
                   <div className="min-w-0">
                     {item.effectiveDate} {formatCorporateActionLabel(item.actionType)} {item.symbol}
                   </div>

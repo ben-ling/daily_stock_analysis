@@ -4,7 +4,7 @@ import { Check, Minus, X } from 'lucide-react';
 import { backtestApi } from '../api/backtest';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, EmptyState, Pagination, StatusDot, Tooltip } from '../components/common';
+import { ApiErrorAlert, Badge, Button, Card, EmptyState, Pagination, StatusDot, Tooltip } from '../components/common';
 import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { formatUiText, type UiLanguage } from '../i18n/uiText';
 import {
@@ -213,7 +213,7 @@ const PerformanceCard: React.FC<{ metrics: PerformanceMetrics; title: string; la
         </span>
       </div>
       {phaseText ? (
-        <div className="mt-3 border-t border-white/10 pt-2 text-xs text-muted-text">
+        <div className="mt-3 border-t border-border/60 pt-2 text-xs text-muted-text">
           {formatUiText(text.phaseDistribution, { text: phaseText })}
         </div>
       ) : null}
@@ -437,7 +437,7 @@ const BacktestPage: React.FC = () => {
   return (
     <div className="min-h-full flex flex-col rounded-[1.5rem] bg-transparent">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-white/5 px-3 py-3 sm:px-4">
+      <header className="flex-shrink-0 border-b border-border/60 px-3 py-3 sm:px-4">
         <div className="flex max-w-5xl flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-[1_1_220px]">
             <input
@@ -450,14 +450,13 @@ const BacktestPage: React.FC = () => {
               className={BACKTEST_INPUT_CLASS}
             />
           </div>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={handleFilter}
             disabled={isLoadingResults}
-            className="btn-secondary flex items-center gap-1.5 whitespace-nowrap"
           >
             {text.filter}
-          </button>
+          </Button>
           <div className="flex items-center gap-2 whitespace-nowrap lg:w-40 lg:justify-between">
             <span className="text-xs text-muted-text">{text.evalWindow}</span>
             <input
@@ -526,24 +525,14 @@ const BacktestPage: React.FC = () => {
             <span className="dot" />
             {text.forceRerun}
           </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleRun}
             disabled={isRunning}
-            className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
+            isLoading={isRunning}
           >
-            {isRunning ? (
-              <>
-                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                {text.running}
-              </>
-            ) : (
-              text.runBacktest
-            )}
-          </button>
+            {text.runBacktest}
+          </Button>
         </div>
         {runResult && (
           <div className="mt-2 max-w-4xl">

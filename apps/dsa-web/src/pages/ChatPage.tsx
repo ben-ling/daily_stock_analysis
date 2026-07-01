@@ -26,6 +26,7 @@ import {
 } from '../utils/chatFollowUp';
 import { isNearBottom } from '../utils/chatScroll';
 import { getReportText } from '../utils/reportLanguage';
+import { useUiLanguage } from '../contexts/UiLanguageContext';
 import { extractStockCodesFromMessage } from '../utils/chatStockCode';
 import { findMatchingStockCode, includesStockCode, normalizeStockCode } from '../utils/stockCode';
 
@@ -150,6 +151,7 @@ const restoreActiveStockContextFromMessages = (messages: Message[]): ActiveStock
 };
 
 const ChatPage: React.FC = () => {
+  const { language } = useUiLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [input, setInput] = useState('');
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -207,10 +209,15 @@ const ChatPage: React.FC = () => {
     };
   }, []);
 
-  // Set page title
+  // Set page title based on language
   useEffect(() => {
-    document.title = '问股 - DSA';
-  }, []);
+    const titles: Record<string, string> = {
+      zh: '问股 - DSA',
+      en: 'Ask Stock - DSA',
+      ko: '주식 문의 - DSA',
+    };
+    document.title = titles[language] || titles.en;
+  }, [language]);
 
   useEffect(() => () => {
     isMountedRef.current = false;

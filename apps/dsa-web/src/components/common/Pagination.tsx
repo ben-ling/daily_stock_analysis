@@ -73,7 +73,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   };
 
   return (
-    <div className={cn('flex items-center justify-center gap-2', className)}>
+    <nav className={cn('flex items-center justify-center gap-2', className)} aria-label="pagination">
       {/* Previous page */}
       <PageButton
         page="prev"
@@ -105,6 +105,6 @@ export const Pagination: React.FC<PaginationProps> = ({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </PageButton>
-    </div>
+    </nav>
   );
 };
